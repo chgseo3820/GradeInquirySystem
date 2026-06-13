@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="2026-1학기 MIS 과목 성적 조회 시스템">
+    <meta name="robots" content="noindex, nofollow">
+    <title>ScoeQuery — 성적 조회</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="static/style.css">
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+    <!-- Favicon (data URI) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+    <div class="container">
+
+        <!-- ═══════════════════════════════════
+             TOP BAR
+             ═══════════════════════════════════ -->
+        <header class="top-bar">
+            <div class="top-bar-title">📊 2026-1학기 MIS 성적조회시스템</div>
+            <div class="top-bar-prof">담당교수: 서창갑 (<a href="mailto:armour@tu.ac.kr">armour@tu.ac.kr</a>)</div>
+        </header>
+
+
+        <!-- ═══════════════════════════════════
+             LOGIN SECTION
+             ═══════════════════════════════════ -->
+        <section class="login-section" id="login-section">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="login-icon">📊</div>
+                    <h1>성적 조회</h1>
+                    <p>2026-1학기 · 경영정보시스템(MIS)</p>
+                </div>
+
+                <form id="login-form" autocomplete="off">
+                    <div class="form-group">
+                        <label class="form-label" for="student-id">학번</label>
+                        <input
+                            type="text"
+                            id="student-id"
+                            class="form-input"
+                            placeholder="학번 8자리를 입력하세요"
+                            inputmode="numeric"
+                            maxlength="10"
+                            required
+                            autofocus
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="phone-last4">전화번호 뒷자리</label>
+                        <input
+                            type="password"
+                            id="phone-last4"
+                            class="form-input input-phone"
+                            placeholder="뒷자리 4자리"
+                            inputmode="numeric"
+                            maxlength="4"
+                            required
+                        >
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn-primary">
+                        <span class="btn-text">성적 조회</span>
+                        <span class="spinner"></span>
+                    </button>
+
+                    <div id="error-message" class="error-message"></div>
+                </form>
+
+                <div class="login-footer">
+                    <span class="lock-icon">🔒</span> 입력된 정보는 본인 확인 목적으로만 사용됩니다<br>
+                    개인정보는 서버에 저장되지 않습니다
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════
+             RESULT SECTION
+             ═══════════════════════════════════ -->
+        <section class="result-section" id="result-section">
+
+            <!-- Header -->
+            <div class="result-header">
+                <div class="student-info">
+                    <div class="student-avatar" id="avatar-initial">—</div>
+                    <div class="student-meta">
+                        <h2 id="student-name">—</h2>
+                        <p id="student-dept">—</p>
+                    </div>
+                </div>
+                <button class="btn-logout" id="logout-btn">← 다시 조회</button>
+            </div>
+
+            <!-- Score Cards -->
+            <div class="score-cards" id="score-cards">
+                <!-- JS가 동적으로 채움 -->
+            </div>
+
+            <!-- Bottom Row: Chart + Summary -->
+            <div class="bottom-row">
+                <!-- Radar Chart -->
+                <div class="chart-card">
+                    <div class="section-title">
+                        <span class="title-icon">📈</span> 분반 평균 비교
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="radar-chart"></canvas>
+                    </div>
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot mine"></span> 내 점수
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot avg"></span> 분반 평균
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot max"></span> 최고점수
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="summary-card">
+                    <div class="section-title">
+                        <span class="title-icon">📋</span> 종합 정보
+                    </div>
+                    <div class="summary-items">
+                        <div class="summary-item">
+                            <span class="summary-label">🎓 평점</span>
+                            <span class="summary-value" id="summary-grade">—</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">🏅 분반 석차</span>
+                            <span class="summary-value" id="summary-rank">—</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">🏆 총점</span>
+                            <span class="summary-value" id="summary-total">—</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">📅 결석</span>
+                            <span class="summary-value" id="summary-absences">—</span>
+                        </div>
+                    </div>
+                    <!-- 비고 -->
+                    <div class="remark-box" id="remark-box" style="display: none;">
+                        <div class="remark-label">📌 비고</div>
+                        <div class="remark-content" id="remark-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="result-footer">
+                본 성적 정보는 성적 마감 이후 확정된 결과입니다<br>
+                이의신청은 성적이의신청기간(6월 27일 ~ 6월 30일) 동안<br>
+                전자우편(<a href="mailto:armour@tu.ac.kr">armour@tu.ac.kr</a>)으로 해 주세요<br>
+                <span style="opacity: 0.5;">ScoeQuery · 2026-1학기</span>
+            </div>
+
+        </section>
+    </div>
+
+    <!-- App Script -->
+    <script src="static/app.js"></script>
+</body>
+</html>
