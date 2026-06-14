@@ -1,10 +1,10 @@
-# ScoeQuery — 성적 조회 시스템
+﻿# ScoreQuery — 성적 조회 시스템
 
 2026-1학기 경영정보시스템(MIS) 성적 조회 웹 애플리케이션
 
 ## 🌐 웹 조회
 
-GitHub Pages로 배포: **https://[your-username].github.io/ScoeQuery/**
+GitHub Pages로 배포: **https://[your-username].github.io/ScoreQuery/**
 
 - 학번 + 전화번호 뒷자리 4자리로 본인 성적 조회
 - 퀴즈 / 출석 / 중간고사 / 기말고사 / 총점 카드 표시
@@ -21,7 +21,7 @@ GitHub Pages로 배포: **https://[your-username].github.io/ScoeQuery/**
 ## 📁 프로젝트 구조
 
 ```
-ScoeQuery/
+ScoreQuery/
 ├── docs/                    ← GitHub Pages 배포 폴더
 │   ├── index.html
 │   ├── data.json            ← 해시 기반 성적 데이터

@@ -1,6 +1,6 @@
 /**
- * ScoeQuery — GitHub Pages 정적 프론트엔드
- * SHA-256 해시 기반 클라이언트 사이드 성적 조회
+ * ScoreQuery — GitHub Pages 정적 프론트엔드
+ * SHA-256 해시 기반 클라이언트 사이드 성적 조회 (학생 모드)
  */
 
 (() => {
@@ -15,6 +15,8 @@
     const submitBtn = document.getElementById('submit-btn');
     const errorMsg = document.getElementById('error-message');
     const logoutBtn = document.getElementById('logout-btn');
+    const courseSelect = document.getElementById('stu-course-select');
+    const authGroup = document.getElementById('student-auth-group');
 
     // ── Score Card Config ──
     const SCORE_FIELDS = [
@@ -27,7 +29,8 @@
 
     // ── State ──
     let radarChart = null;
-    let gradeData = null; // 전체 JSON 데이터 캐시
+    let gradeData = null;
+    let selectedCourse = null; // { year, semester, name }
 
     // ── Event Listeners ──
     loginForm.addEventListener('submit', handleLogin);
@@ -41,17 +44,158 @@
         e.target.value = e.target.value.replace(/[^0-9]/g, '');
     });
 
-    // ── 데이터 로드 (최초 1회) ──
-    async function loadData() {
-        if (gradeData) return gradeData;
+    // 과목 선택 시 공시 상태 확인 후 인증 필드 표시
+    courseSelect.addEventListener('change', () => {
+        const val = courseSelect.value;
+        courseSelect.classList.toggle('select-unselected', !val);
+        hideError();
+
+        if (val) {
+            const courses = getAvailableCourses();
+            selectedCourse = courses[parseInt(val)];
+            gradeData = null; // 캐시 초기화
+
+            // 과목명 표시
+            document.getElementById('login-course-info').textContent =
+                `${selectedCourse.year} ${selectedCourse.semester} — ${selectedCourse.name}`;
+
+            // 공시 상태 확인
+            const publishStatus = checkPublishStatus(selectedCourse);
+
+            if (publishStatus.available) {
+                authGroup.style.display = '';
+            } else {
+                authGroup.style.display = 'none';
+                showError(publishStatus.message);
+            }
+        } else {
+            selectedCourse = null;
+            authGroup.style.display = 'none';
+            document.getElementById('login-course-info').textContent = '성적을 조회합니다';
+        }
+    });
+
+    // ── 공시 상태 확인 ──
+    function checkPublishStatus(course) {
+        const key = `scorequery_publish_${course.year}_${course.semester}_${course.name}`;
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) {
+                return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.\n교수님께서 공시한 후 조회할 수 있습니다.' };
+            }
+            const info = JSON.parse(raw);
+            if (!info.published) {
+                return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.\n교수님께서 공시한 후 조회할 수 있습니다.' };
+            }
+            const publishDate = new Date(info.publishDate);
+            const now = new Date();
+            if (now < publishDate) {
+                const dateStr = publishDate.toLocaleString('ko-KR', {
+                    year:'numeric', month:'long', day:'numeric',
+                    hour:'2-digit', minute:'2-digit'
+                });
+                return { available: false, message: `⏳ 성적 공시 예정입니다.\n${dateStr}부터 조회할 수 있습니다.` };
+            }
+            return { available: true };
+        } catch {
+            return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.' };
+        }
+    }
+
+    // ── 과목 목록 가져오기 ──
+    function getAvailableCourses() {
+        // 1) 전용 과목 목록 키
+        try {
+            const raw = localStorage.getItem('scorequery_courses');
+            if (raw) {
+                const list = JSON.parse(raw);
+                if (list.length > 0) return list;
+            }
+        } catch { /* ignore */ }
+
+        // 2) 교수 설정에서 courses 배열 가져오기 (폴백)
+        try {
+            const cfgRaw = localStorage.getItem('scorequery_config');
+            if (cfgRaw) {
+                const cfg = JSON.parse(cfgRaw);
+                if (cfg.courses && cfg.courses.length > 0) {
+                    return cfg.courses.map(c => ({ year: c.year, semester: c.semester, name: c.name }));
+                }
+                // 이전 형식: 단일 course
+                if (cfg.course && cfg.course.name) {
+                    return [{ year: cfg.course.year, semester: cfg.course.semester, name: cfg.course.name }];
+                }
+            }
+        } catch { /* ignore */ }
+
+        return [];
+    }
+
+    // ── 학생모드 진입 시 과목 목록 채우기 ──
+    function populateStudentCourses() {
+        const courses = getAvailableCourses();
+        courseSelect.innerHTML = '<option value="">과목을 선택하세요</option>';
+        courseSelect.classList.add('select-unselected');
+        courses.forEach((c, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = `${c.year} ${c.semester} — ${c.name}`;
+            courseSelect.appendChild(opt);
+        });
+        authGroup.style.display = 'none';
+        selectedCourse = null;
+        document.getElementById('login-course-info').textContent = '과목을 선택하면 성적을 조회할 수 있습니다';
+
+        if (courses.length === 0) {
+            courseSelect.innerHTML = '<option value="">등록된 과목이 없습니다</option>';
+        }
+    }
+
+    // ── 데이터 로드 (모든 소스에서 순차 검색) ──
+    async function loadAllDataSources() {
+        const sources = [];
+        const isValid = (d) => d && d.students && Object.keys(d.students).length > 0;
+
+        // 1) 과목별 키
+        if (selectedCourse) {
+            const key = `scorequery_data_${selectedCourse.year}_${selectedCourse.semester}_${selectedCourse.name}`;
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (isValid(parsed)) {
+                        parsed._source = 'course-key';
+                        sources.push(parsed);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        // 2) 기존 단일 키 (하위호환)
+        try {
+            const localRaw = localStorage.getItem('scorequery_data');
+            if (localRaw) {
+                const parsed = JSON.parse(localRaw);
+                if (isValid(parsed)) {
+                    parsed._source = 'single-key';
+                    sources.push(parsed);
+                }
+            }
+        } catch (e) { /* ignore */ }
+
+        // 3) data.json 파일
         try {
             const res = await fetch('data.json');
-            if (!res.ok) throw new Error('데이터 파일을 불러올 수 없습니다.');
-            gradeData = await res.json();
-            return gradeData;
-        } catch (err) {
-            throw new Error('데이터 파일을 불러올 수 없습니다.\n페이지를 새로고침 해 주세요.');
-        }
+            if (res.ok) {
+                const parsed = await res.json();
+                if (isValid(parsed)) {
+                    parsed._source = 'data.json';
+                    sources.push(parsed);
+                }
+            }
+        } catch (e) { /* ignore */ }
+
+        return sources;
     }
 
     // ── SHA-256 해시 (Web Crypto API) ──
@@ -67,6 +211,11 @@
     async function handleLogin(e) {
         e.preventDefault();
         hideError();
+
+        if (!selectedCourse) {
+            showError('과목을 먼저 선택해 주세요.');
+            return;
+        }
 
         const studentId = studentIdInput.value.trim();
         const phoneLast4 = phoneLast4Input.value.trim();
@@ -84,22 +233,39 @@
         setLoading(true);
 
         try {
-            const data = await loadData();
-            const hashKey = await sha256(`${studentId}|${phoneLast4}`);
-            const student = data.students[hashKey];
+            const sources = await loadAllDataSources();
+            if (sources.length === 0) {
+                showError('성적 데이터가 없습니다.\n교수 모드에서 Excel을 업로드해 주세요.');
+                setLoading(false);
+                return;
+            }
 
-            if (!student) {
+            const hashKey = await sha256(`${studentId}|${phoneLast4}`);
+
+            // 모든 데이터 소스에서 순차 검색
+            let foundData = null;
+            let foundStudent = null;
+            for (const data of sources) {
+                if (data.students[hashKey]) {
+                    foundData = data;
+                    foundStudent = data.students[hashKey];
+                    break;
+                }
+            }
+
+            if (!foundStudent) {
                 showError('일치하는 정보를 찾을 수 없습니다.\n학번과 전화번호를 다시 확인해 주세요.');
                 setLoading(false);
                 return;
             }
 
-            const cn = String(student.class_num);
-            const classAvg = data.class_avg[cn] || {};
-            const classMax = data.class_max[cn] || {};
-            const classCount = data.class_counts[cn] || 0;
+            gradeData = foundData;
+            const cn = String(foundStudent.class_num);
+            const classAvg = foundData.class_avg[cn] || {};
+            const classMax = foundData.class_max[cn] || {};
+            const classCount = foundData.class_counts[cn] || 0;
 
-            renderResult({ student, class_avg: classAvg, class_max: classMax, class_count: classCount });
+            renderResult({ student: foundStudent, class_avg: classAvg, class_max: classMax, class_count: classCount });
         } catch (err) {
             showError(err.message || '조회에 실패했습니다.');
         } finally {
@@ -114,10 +280,20 @@
         loginForm.reset();
         hideError();
 
+        // 과목 선택 초기화
+        selectedCourse = null;
+        gradeData = null;
+        courseSelect.value = '';
+        authGroup.style.display = 'none';
+        document.getElementById('login-course-info').textContent = '과목을 선택하면 성적을 조회할 수 있습니다';
+
         if (radarChart) {
             radarChart.destroy();
             radarChart = null;
         }
+
+        // 상단 바 복원
+        document.getElementById('top-bar-title').textContent = '📊 성적 관리 시스템';
 
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     }
@@ -128,6 +304,19 @@
 
         loginSection.style.display = 'none';
         resultSection.classList.add('visible');
+
+        // 상단 바에 과목+교수 정보 표시
+        if (selectedCourse) {
+            const titleEl = document.getElementById('top-bar-title');
+            titleEl.textContent = `성적조회시스템: ${selectedCourse.year}-${selectedCourse.semester}-${selectedCourse.name}`;
+            try {
+                const cfg = JSON.parse(localStorage.getItem('scorequery_config') || '{}');
+                if (cfg.professor && cfg.professor.name) {
+                    const profEl = document.getElementById('top-bar-prof');
+                    profEl.textContent = `담당교수: ${cfg.professor.name}(${cfg.professor.email || ''})`;
+                }
+            } catch {}
+        }
 
         document.getElementById('avatar-initial').textContent = student.name_masked[0];
         document.getElementById('student-name').textContent = student.name_masked;
@@ -155,6 +344,15 @@
 
             const card = document.createElement('div');
             card.className = `score-card ${field.cssClass}`;
+            // 분반 평균과의 차이 계산
+            let diffHtml = '';
+            if (value !== null && value !== undefined && avg !== null && avg !== undefined) {
+                const diff = value - avg;
+                const sign = diff >= 0 ? '+' : '';
+                const color = diff >= 0 ? '#4ade80' : '#fbbf24';
+                diffHtml = `<div class="card-diff-hint" style="color:${color}; font-weight:700;">${sign}${diff.toFixed(1)}</div>`;
+            }
+
             card.innerHTML = `
                 <div class="card-icon">${field.icon}</div>
                 <div class="card-label">${field.label}</div>
@@ -167,6 +365,7 @@
                     <span class="avg-dot"></span>
                     분반 평균 ${avgDisplay}
                 </div>
+                ${diffHtml}
             `;
             container.appendChild(card);
         });
@@ -357,4 +556,17 @@
             submitBtn.disabled = false;
         }
     }
+
+    // ── 성적 문의 안내 마우스 추적 ──
+    const inquiryNotice = document.getElementById('grade-inquiry-notice');
+    if (inquiryNotice) {
+        inquiryNotice.addEventListener('mousemove', (e) => {
+            const rect = inquiryNotice.getBoundingClientRect();
+            inquiryNotice.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+            inquiryNotice.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+        });
+    }
+
+    // Expose for admin.js
+    window.populateStudentCourses = populateStudentCourses;
 })();

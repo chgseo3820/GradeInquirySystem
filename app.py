@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-ScoeQuery — 성적 조회 시스템 백엔드
+ScoreQuery — 성적 조회 시스템 백엔드
 2026-1학기 MIS 과목 성적 마감 후 학생 개인 성적 조회 API
 """
 
@@ -146,7 +146,7 @@ def load_excel():
         ])
 
     wb.close()
-    print(f"[ScoeQuery] {len(students)}명 학생 데이터 로드 완료 (분반 {len(class_averages)}개)")
+    print(f"[ScoreQuery] {len(students)}명 학생 데이터 로드 완료 (분반 {len(class_averages)}개)")
 
 
 # ──────────────────────────────────────────────

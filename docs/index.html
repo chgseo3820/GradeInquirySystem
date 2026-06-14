@@ -3,15 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="2026-1학기 MIS 과목 성적 조회 시스템">
+    <meta name="description" content="성적 조회 및 관리 시스템">
     <meta name="robots" content="noindex, nofollow">
-    <title>ScoeQuery — 성적 조회</title>
+    <title>ScoreQuery — 성적 관리</title>
 
     <!-- Styles -->
     <link rel="stylesheet" href="static/style.css">
 
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+    <!-- SheetJS CDN (Excel 생성) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
     <!-- Favicon (data URI) -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
@@ -22,68 +25,104 @@
         <!-- ═══════════════════════════════════
              TOP BAR
              ═══════════════════════════════════ -->
-        <header class="top-bar">
-            <div class="top-bar-title">📊 2026-1학기 MIS 성적조회시스템</div>
-            <div class="top-bar-prof">담당교수: 서창갑 (<a href="mailto:armour@tu.ac.kr">armour@tu.ac.kr</a>)</div>
+        <header class="top-bar" id="top-bar">
+            <div class="top-bar-title" id="top-bar-title">📊 성적 관리 시스템</div>
+            <div class="top-bar-prof" id="top-bar-prof"></div>
         </header>
 
 
         <!-- ═══════════════════════════════════
-             LOGIN SECTION
+             MODE SELECTION
              ═══════════════════════════════════ -->
-        <section class="login-section" id="login-section">
+        <section class="mode-section" id="mode-section">
+            <div class="mode-header">
+                <h1>📊 ScoreQuery</h1>
+                <p>성적 조회 · 관리 시스템</p>
+            </div>
+            <div class="mode-cards">
+                <div class="mode-card mode-student" id="mode-student-btn">
+                    <span class="mode-card-icon">🎓</span>
+                    <div class="mode-card-title">학생 모드</div>
+                    <div class="mode-card-desc">성적을 조회합니다<br>학번과 전화번호로 인증</div>
+                </div>
+                <div class="mode-card mode-admin" id="mode-admin-btn">
+                    <span class="mode-card-icon">⚙️</span>
+                    <div class="mode-card-title">교수 모드</div>
+                    <div class="mode-card-desc">과목을 설정하고<br>성적 템플릿을 생성합니다</div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════════════════════════
+             STUDENT LOGIN SECTION
+             ═══════════════════════════════════ -->
+        <section class="login-section" id="login-section" style="display:none;">
             <div class="login-card">
                 <div class="login-header">
                     <div class="login-icon">📊</div>
                     <h1>성적 조회</h1>
-                    <p>2026-1학기 · 경영정보시스템(MIS)</p>
+                    <p id="login-course-info">성적을 조회합니다</p>
                 </div>
 
                 <form id="login-form" autocomplete="off">
-                    <div class="form-group">
-                        <label class="form-label" for="student-id">학번</label>
-                        <input
-                            type="text"
-                            id="student-id"
-                            class="form-input"
-                            placeholder="학번 8자리를 입력하세요"
-                            inputmode="numeric"
-                            maxlength="10"
-                            required
-                            autofocus
-                        >
+                    <!-- 과목 선택 -->
+                    <div class="course-select-group" id="student-course-group">
+                        <div class="form-group">
+                            <label class="form-label" for="stu-course-select">📚 과목 선택</label>
+                            <select id="stu-course-select" class="form-input select-unselected" required>
+                                <option value="">과목을 선택하세요</option>
+                                <!-- JS가 동적으로 채움 -->
+                            </select>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="phone-last4">전화번호 뒷자리</label>
-                        <input
-                            type="password"
-                            id="phone-last4"
-                            class="form-input input-phone"
-                            placeholder="뒷자리 4자리"
-                            inputmode="numeric"
-                            maxlength="4"
-                            required
-                        >
-                    </div>
+                    <div id="student-auth-group" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label" for="student-id">학번</label>
+                            <input
+                                type="text"
+                                id="student-id"
+                                class="form-input"
+                                placeholder="학번 8자리를 입력하세요"
+                                inputmode="numeric"
+                                maxlength="10"
+                                required
+                            >
+                        </div>
 
-                    <button type="submit" id="submit-btn" class="btn-primary">
-                        <span class="btn-text">성적 조회</span>
-                        <span class="spinner"></span>
-                    </button>
+                        <div class="form-group">
+                            <label class="form-label" for="phone-last4">전화번호 뒷자리</label>
+                            <input
+                                type="password"
+                                id="phone-last4"
+                                class="form-input input-phone"
+                                placeholder="뒷자리 4자리"
+                                inputmode="numeric"
+                                maxlength="4"
+                                required
+                            >
+                        </div>
+
+                        <button type="submit" id="submit-btn" class="btn-primary">
+                            <span class="btn-text">성적 조회</span>
+                            <span class="spinner"></span>
+                        </button>
+                    </div>
 
                     <div id="error-message" class="error-message"></div>
                 </form>
 
                 <div class="login-footer">
                     <span class="lock-icon">🔒</span> 입력된 정보는 본인 확인 목적으로만 사용됩니다<br>
-                    개인정보는 서버에 저장되지 않습니다
+                    개인정보는 서버에 저장되지 않습니다<br>
+                    <button class="btn-home" id="login-back-btn" style="margin-top:12px;">← 처음으로</button>
                 </div>
             </div>
         </section>
 
         <!-- ═══════════════════════════════════
-             RESULT SECTION
+             RESULT SECTION (학생 성적 결과)
              ═══════════════════════════════════ -->
         <section class="result-section" id="result-section">
 
@@ -100,13 +139,10 @@
             </div>
 
             <!-- Score Cards -->
-            <div class="score-cards" id="score-cards">
-                <!-- JS가 동적으로 채움 -->
-            </div>
+            <div class="score-cards" id="score-cards"></div>
 
             <!-- Bottom Row: Chart + Summary -->
             <div class="bottom-row">
-                <!-- Radar Chart -->
                 <div class="chart-card">
                     <div class="section-title">
                         <span class="title-icon">📈</span> 분반 평균 비교
@@ -127,7 +163,6 @@
                     </div>
                 </div>
 
-                <!-- Summary -->
                 <div class="summary-card">
                     <div class="section-title">
                         <span class="title-icon">📋</span> 종합 정보
@@ -150,26 +185,249 @@
                             <span class="summary-value" id="summary-absences">—</span>
                         </div>
                     </div>
-                    <!-- 비고 -->
                     <div class="remark-box" id="remark-box" style="display: none;">
                         <div class="remark-label">📌 비고</div>
                         <div class="remark-content" id="remark-content"></div>
                     </div>
+                    <div class="grade-inquiry-notice" id="grade-inquiry-notice">
+                        ❗ 성적에 대한 문의는 성적이의신청기간을 통해 교수님께 이메일로 문의바랍니다!
+                    </div>
                 </div>
             </div>
 
-            <!-- Footer -->
-            <div class="result-footer">
+
+            <div class="result-footer" id="result-footer">
                 본 성적 정보는 성적 마감 이후 확정된 결과입니다<br>
-                이의신청은 성적이의신청기간(6월 27일 ~ 6월 30일) 동안<br>
-                전자우편(<a href="mailto:armour@tu.ac.kr">armour@tu.ac.kr</a>)으로 해 주세요<br>
-                <span style="opacity: 0.5;">ScoeQuery · 2026-1학기</span>
+                <span style="opacity: 0.5;">ScoreQuery</span>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════════════════════════
+             ADMIN WIZARD SECTION
+             ═══════════════════════════════════ -->
+        <section class="admin-section" id="admin-section">
+
+            <!-- Step Indicator -->
+            <div class="wizard-steps" id="wizard-steps">
+                <div class="wizard-step active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <span class="step-label">교수정보</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="wizard-step" data-step="2">
+                    <div class="step-circle">2</div>
+                    <span class="step-label">과목정보</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="wizard-step" data-step="3">
+                    <div class="step-circle">3</div>
+                    <span class="step-label">평가기준</span>
+                </div>
+            </div>
+
+            <!-- ── Step 1: 교수 인적사항 ── -->
+            <div class="wizard-panel" id="wizard-step-1">
+                <div class="wizard-card">
+                    <div class="wizard-card-title">👤 교수 인적사항</div>
+                    <div class="wizard-card-subtitle">성적표에 표시될 교수 정보를 입력합니다</div>
+
+                    <!-- 불러오기 섹션 -->
+                    <div class="load-config-box" id="load-config-box">
+                        <div class="load-config-header">
+                            <span>📂 이전 설정 불러오기</span>
+                            <button class="btn-load-toggle" id="btn-load-toggle">불러오기 ▾</button>
+                        </div>
+                        <div class="load-config-form" id="load-config-form" style="display:none;">
+                            <div class="wizard-form-row">
+                                <div class="wizard-form-group" style="margin-bottom:8px;">
+                                    <label for="load-name">교수자 이름</label>
+                                    <input type="text" id="load-name" placeholder="이름 입력">
+                                </div>
+                                <div class="wizard-form-group" style="margin-bottom:8px;">
+                                    <label for="load-phone4">전화번호 뒷자리 4자리</label>
+                                    <input type="password" id="load-phone4" placeholder="뒷자리 4자리" maxlength="4" inputmode="numeric">
+                                </div>
+                            </div>
+                            <button class="btn-next" id="btn-load-config" style="width:100%;margin-top:4px;">불러오기 →</button>
+                            <div id="load-error" class="error-message" style="margin-top:8px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="wizard-form-group">
+                        <label for="prof-name">이름 <span style="color:#f87171;">*</span></label>
+                        <input type="text" id="prof-name" placeholder="홍길동" required>
+                    </div>
+                    <div class="wizard-form-group">
+                        <label for="prof-email">이메일 <span style="color:#f87171;">*</span></label>
+                        <input type="email" id="prof-email" placeholder="professor@university.ac.kr" required>
+                    </div>
+                    <div class="wizard-form-group">
+                        <label for="prof-phone">전화번호 <span style="color:#f87171;">*</span></label>
+                        <input type="tel" id="prof-phone" placeholder="010-1234-5678">
+                    </div>
+
+                    <div class="wizard-nav">
+                        <button class="btn-back" id="wizard-back-home">← 처음으로</button>
+                        <button class="btn-next" id="wizard-next-1">다음 →</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Step 2: 과목 정보 ── -->
+            <div class="wizard-panel" id="wizard-step-2" style="display:none;">
+                <div class="wizard-card">
+                    <div class="wizard-card-title">📚 과목 정보</div>
+                    <div class="wizard-card-subtitle">성적을 관리할 과목 정보를 입력합니다</div>
+
+                    <div class="wizard-form-row">
+                        <div class="wizard-form-group">
+                            <label for="course-year">년도 <span style="color:#f87171;">*</span></label>
+                            <select id="course-year" class="select-unselected">
+                                <option value="">선택</option>
+                            </select>
+                        </div>
+                        <div class="wizard-form-group">
+                            <label for="course-semester">학기 <span style="color:#f87171;">*</span></label>
+                            <select id="course-semester" class="select-unselected">
+                                <option value="">선택</option>
+                                <option value="1학기">1학기</option>
+                                <option value="2학기">2학기</option>
+                                <option value="여름계절">여름계절</option>
+                                <option value="겨울계절">겨울계절</option>
+                                <option value="__custom__">기타 (직접입력)</option>
+                            </select>
+                            <input type="text" id="course-semester-custom" class="custom-input" placeholder="학기명을 입력하세요">
+                        </div>
+                    </div>
+                    <div class="wizard-form-group">
+                        <label for="course-name">과목명 <span style="color:#f87171;">*</span></label>
+                        <input type="text" id="course-name" placeholder="경영정보시스템(MIS)" list="course-name-list" autocomplete="off">
+                        <datalist id="course-name-list">
+                            <!-- JS가 기존 과목명으로 채움 -->
+                        </datalist>
+                    </div>
+
+                    <div class="wizard-nav">
+                        <button class="btn-back" id="wizard-back-2">← 이전</button>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-next" id="wizard-save-2" style="background:linear-gradient(135deg,#f59e0b,#d97706);">💾 저장</button>
+                            <button class="btn-next" id="wizard-next-2">다음 →</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Step 3: 평가 기준 ── -->
+            <div class="wizard-panel" id="wizard-step-3" style="display:none;">
+                <div class="wizard-card">
+                    <div class="wizard-card-title">📊 평가 기준</div>
+                    <div class="wizard-card-subtitle">평가 항목을 선택하고 비율을 설정합니다 (합계 100%)</div>
+
+                    <div class="eval-criteria-list" id="eval-criteria-list">
+                        <!-- JS가 동적으로 채움 -->
+                    </div>
+
+                    <div class="eval-total">
+                        <div class="eval-total-header">
+                            <span class="eval-total-label">비율 합계</span>
+                            <span class="eval-total-value" id="eval-total-value">0%</span>
+                        </div>
+                        <div class="eval-total-bar">
+                            <div class="eval-total-fill" id="eval-total-fill" style="width:0%"></div>
+                        </div>
+                        <div class="eval-warning" id="eval-warning">⚠️ 비율의 합이 100%가 되어야 합니다</div>
+                    </div>
+
+                    <div class="wizard-nav">
+                        <button class="btn-back" id="wizard-back-3">← 이전</button>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-next" id="wizard-add-course" style="background:linear-gradient(135deg,#f59e0b,#d97706);" disabled>➕ 다른 과목 추가</button>
+                            <button class="btn-next" id="wizard-next-3" disabled>설정 완료 ✓</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 설정 완료 ── -->
+            <div class="wizard-panel" id="wizard-step-complete" style="display:none;">
+                <div class="wizard-card">
+                    <div class="complete-section">
+                        <div class="complete-icon">🎉</div>
+                        <div class="complete-title">설정이 완료되었습니다</div>
+                        <div class="complete-subtitle">과목을 선택한 후, 샘플 Excel 다운로드 또는 성적 업로드를 진행하세요</div>
+
+                        <!-- 과목 선택기 -->
+                        <div class="course-selector" id="course-selector">
+                            <label for="select-course" style="font-weight:600;color:var(--text-main);">📚 과목 선택</label>
+                            <select id="select-course" class="wizard-select">
+                                <!-- JS가 동적으로 채움 -->
+                            </select>
+                        </div>
+
+                        <div class="complete-summary" id="complete-summary"></div>
+
+                        <button class="btn-download" id="btn-download-excel">
+                            📥 샘플 Excel 다운로드
+                        </button>
+
+                        <!-- 업로드 영역 -->
+                        <div class="upload-area" id="upload-area">
+                            <div class="upload-box" id="upload-box">
+                                <div class="upload-icon">📤</div>
+                                <div class="upload-text">성적이 포함된 Excel 파일을<br>여기에 드래그하거나 클릭하세요</div>
+                                <div class="upload-hint">.xlsx 파일 · 성적산출 근거 포함 파일 모두 가능</div>
+                                <input type="file" id="upload-input" accept=".xlsx,.xls" style="display:none;">
+                            </div>
+                            <div id="upload-status" style="display:none;"></div>
+                            <!-- 검증 보고서 -->
+                            <div id="upload-validation" style="display:none;"></div>
+
+                            <!-- 파이프라인 -->
+                            <div id="pipeline-area" style="display:none;">
+                                <div class="pipeline-steps" id="pipeline-steps">
+                                    <!-- 비표준: 4단계 / 표준: 2단계 (JS에서 동적 구성) -->
+                                </div>
+                                <div class="pipeline-filename" id="converted-filename"></div>
+                                <!-- 미리보기 테이블 -->
+                                <div id="preview-toolbar" class="preview-toolbar" style="display:none;">
+                                    <button class="btn-preview-toggle" id="btn-preview-toggle">👁 미리보기 접기 ▴</button>
+                                    <span class="preview-count" id="preview-count"></span>
+                                </div>
+                                <div id="upload-preview-table" class="preview-table-wrap" style="display:none;"></div>
+                            </div>
+
+                            <!-- 공시 설정 -->
+                            <div id="publish-area" style="display:none;">
+                                <div class="publish-card">
+                                    <div class="publish-title">📢 성적 공시 설정</div>
+                                    <div class="publish-status" id="publish-status"></div>
+                                    <div class="publish-form">
+                                        <div class="publish-field">
+                                            <label for="publish-datetime">공시 일시</label>
+                                            <input type="datetime-local" id="publish-datetime" class="publish-input">
+                                        </div>
+                                        <div class="publish-actions">
+                                            <button class="pipe-btn active" id="btn-publish" style="padding:10px 24px;">📢 공시하기</button>
+                                            <button class="pipe-btn" id="btn-unpublish" style="padding:10px 24px;opacity:0.6;cursor:pointer;">🚫 공시 취소</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <br>
+                        <button class="btn-home" id="btn-go-home">← 처음으로 돌아가기</button>
+                    </div>
+                </div>
             </div>
 
         </section>
+
     </div>
 
-    <!-- App Script -->
+    <!-- App Scripts -->
     <script src="static/app.js"></script>
+    <script src="static/admin.js"></script>
 </body>
 </html>
