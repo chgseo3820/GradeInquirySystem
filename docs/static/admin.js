@@ -1410,28 +1410,26 @@
         let strictVerificationHtml = '';
         if (dataJson && dataJson.verificationReport) {
             const report = dataJson.verificationReport;
-            const modelText = report.useWeightedScaling
-                ? '🔢 <strong>백분율 환산 적용됨</strong> (입력된 100점 만점 원본 점수를 설정된 평가 비율에 맞춰 자동 환산하여 데이터베이스에 반영했습니다)'
-                : '✅ <strong>비율 반영 완료</strong> (엑셀에 입력된 값에 추가 비율 가중치 변환 없이 그대로 수집 처리했습니다)';
+            const modelText = '✅ <strong>비율 반영 완료</strong> (엑셀에 입력된 값에 추가 비율 가중치 변환 없이 그대로 수집 처리했습니다)';
                 
             let mismatchAlert = '';
             if (report.totalMismatches > 0) {
                 mismatchAlert = `
                     <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; color: #fde047; line-height: 1.5; text-align: left;">
-                        ⚠️ <strong>합계 불일치 감지 (${report.totalMismatches}건):</strong> 엑셀의 총점 필드값과 항목별 가중합산(출석+평가+특별점수) 결과가 다른 학생이 발견되었습니다. 시스템에서 수식 정합성을 보장하기 위해 <strong>비율 가중합산 값으로 자동 보정</strong>했습니다.
+                        ⚠️ <strong>합계 불일치 감지 (${report.totalMismatches}건):</strong> 엑셀의 총점 필드값과 항목별 가중합산(평가항목합산+특별점수) 결과가 다릅니다. 시스템 수식 무결성을 위해 <strong>실제 합산 값으로 자동 보정</strong>되었습니다.
                     </div>
                 `;
             } else {
                 mismatchAlert = `
                     <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; color: #86efac; line-height: 1.5; text-align: left;">
-                        ✅ 모든 학생의 항목별 가중합산과 엑셀 내 기재된 총점이 100% 완벽히 일치합니다.
+                        ✅ 모든 학생의 항목별 가중합산과 엑셀 내 기재된 총점이 일치합니다.
                     </div>
                 `;
             }
 
             strictVerificationHtml = `
                 <div class="validation-section" style="margin-top: 20px; border-top: 1px solid var(--border-glass); padding-top: 16px;">
-                    <div class="validation-section-title" style="color: #38bdf8; font-weight: 700; margin-bottom: 8px;">🔬 성적 산출 및 비율 정밀 검증</div>
+                    <div class="validation-section-title" style="color: #38bdf8; font-weight: 700; margin-bottom: 8px;">🔬 성적 산출 정밀 검증</div>
                     <div class="validation-item pass" style="text-align: left; font-size: 12px; line-height: 1.6; padding: 10px 12px;">
                         ${modelText}
                     </div>
@@ -1700,57 +1698,8 @@
         const students = {};
         const classStudents = {};
 
-        // 1. 성적 자동 가중치 환산 여부 판단 알고리즘
-        let useWeightedScaling = false;
-        let anyExceedsRatio = false;
-        let totalMatchesWeighted = 0;
-        let totalMatchesRaw = 0;
-        let validComparisons = 0;
-
-        for (const row of rows) {
-            const studentId = String(row[mapping.studentId] || '').trim();
-            if (!studentId) continue;
-
-            let rowRawSum = 0;
-            let rowWeightedSum = 0;
-            let hasScores = false;
-
-            evalPairs.forEach(({ evalItem, colName }) => {
-                if (colName) {
-                    const val = parseFloat(row[colName]);
-                    if (!isNaN(val)) {
-                        hasScores = true;
-                        rowRawSum += val;
-                        rowWeightedSum += val * (evalItem.ratio / 100);
-                        if (val > evalItem.ratio) {
-                            anyExceedsRatio = true;
-                        }
-                    }
-                }
-            });
-
-            if (mapping.total && hasScores) {
-                const excelTotal = parseFloat(row[mapping.total]);
-                const specialScore = mapping.special ? (parseFloat(row[mapping.special]) || 0) : 0;
-                if (!isNaN(excelTotal)) {
-                    validComparisons++;
-                    const diffRaw = Math.abs((rowRawSum + specialScore) - excelTotal);
-                    const diffWeighted = Math.abs((rowWeightedSum + specialScore) - excelTotal);
-                    
-                    if (diffWeighted < diffRaw && diffRaw > 2.0) {
-                        totalMatchesWeighted++;
-                    } else if (diffRaw < diffWeighted && diffWeighted > 2.0) {
-                        totalMatchesRaw++;
-                    }
-                }
-            }
-        }
-
-        if (anyExceedsRatio) {
-            useWeightedScaling = true;
-        } else if (validComparisons > 0 && totalMatchesWeighted > totalMatchesRaw) {
-            useWeightedScaling = true;
-        }
+        // 1. 성적 자동 가중치 환산 기능 제거 (입력값 그대로 반영)
+        const useWeightedScaling = false;
 
         let totalMismatches = 0;
         let mismatchDetails = [];
