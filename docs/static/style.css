@@ -302,6 +302,11 @@ select.select-unselected option {
     outline: none;
 }
 
+select.form-input option {
+    color: #666;
+    background: #fff;
+}
+
 .form-input::placeholder {
     color: var(--text-muted);
 }
