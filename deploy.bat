@@ -24,6 +24,8 @@ echo [3/4] 임시 디렉터리 내 Git 저장소 초기화 및 커밋...
 cd deploy_temp
 git init >nul
 git checkout -b gh-pages >nul
+git config user.name "armour-seo"
+git config user.email "armour@tu.ac.kr"
 git add . >nul
 git commit -m "Deploy to GitHub Pages (root-level)" >nul
 
@@ -50,4 +52,3 @@ echo.
 echo  설정이 완료되면 주소에서 /docs/가 완전히 사라진 아래 주소로 즉시 서비스됩니다:
 echo  👉 https://armour-seo.github.io/ScoreQuery/
 echo ========================================================
-pause
