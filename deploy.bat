@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 >nul
 echo ========================================================
 echo  ScoreQuery GitHub Pages 배포 스크립트 (docs 경로 제거용)
@@ -7,7 +7,7 @@ echo.
 
 where git >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] Git이 설치되어 있지 않거나 환경 변수(PATH)에 등록되어 있지 않습니다.
+    echo [ERROR] Git이 설치되어 있지 않거나 환경 변수 PATH에 등록되어 있지 않습니다.
     echo Git을 먼저 설치하고 다시 시도해 주세요.
     pause
     exit /b
