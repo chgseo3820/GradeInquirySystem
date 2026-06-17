@@ -1706,7 +1706,9 @@ select.select-unselected option {
 }
 
 .preview-table {
-    width: 100%;
+    width: auto;
+    margin: 0 auto;
+    max-width: 100%;
     border-collapse: collapse;
     font-size: 0.75rem;
     white-space: nowrap;
@@ -1730,6 +1732,14 @@ select.select-unselected option {
     border-bottom: 2px solid rgba(99, 102, 241, 0.3);
 }
 
+.preview-table th.cell-num {
+    text-align: right;
+}
+
+.preview-table th.cell-center {
+    text-align: center;
+}
+
 .preview-table td {
     padding: 6px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
@@ -1748,6 +1758,10 @@ select.select-unselected option {
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: var(--text-primary);
+}
+
+.preview-table .cell-center {
+    text-align: center;
 }
 
 .preview-table .cell-masked {

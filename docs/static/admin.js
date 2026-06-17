@@ -1475,23 +1475,53 @@
         const idCol = headers.find(h => h.includes('학번'));
         const phoneCol = headers.find(h => h.includes('전화') || h.includes('핸드폰') || h.includes('연락처'));
 
-        // 헤더
-        const thHtml = headers.map(h => `<th>${h}</th>`).join('');
+        // 컬럼별 정렬 클래스 판단 함수
+        const getAlignClass = (h) => {
+            const centerKeywords = ['학년', '순번', '석차', '학점', '순위', '학년도', '학기'];
+            const numKeywords = ['점수', '총점', '%', '퀴즈', '출석', '과제', '고사', '비율', '비고'];
+            if (centerKeywords.some(kw => h.includes(kw))) return 'cell-center';
+            if (numKeywords.some(kw => h.includes(kw))) return 'cell-num';
+            return ''; // 기본 (left)
+        };
+
+        // 헤더 (헤더도 동일한 정렬 적용)
+        const thHtml = headers.map(h => {
+            const alignCls = getAlignClass(h);
+            const clsAttr = alignCls ? ` class="${alignCls}"` : '';
+            return `<th${clsAttr}>${h}</th>`;
+        }).join('');
 
         // 행 (최대 200행)
         const displayRows = rows.slice(0, 200);
         const trHtml = displayRows.map(row => {
             const tds = headers.map(h => {
                 let v = row[h];
+                const alignCls = getAlignClass(h);
+                let clsList = [];
+                if (alignCls) clsList.push(alignCls);
+
                 // 개인정보 마스킹
-                if (h === nameCol) return `<td class="cell-masked">${maskName(v)}</td>`;
-                if (h === idCol) return `<td class="cell-masked">${maskId(v)}</td>`;
-                if (h === phoneCol) return `<td class="cell-masked">${maskPhone(v)}</td>`;
+                if (h === nameCol) {
+                    clsList.push('cell-masked');
+                    return `<td class="${clsList.join(' ')}">${maskName(v)}</td>`;
+                }
+                if (h === idCol) {
+                    clsList.push('cell-masked');
+                    return `<td class="${clsList.join(' ')}">${maskId(v)}</td>`;
+                }
+                if (h === phoneCol) {
+                    clsList.push('cell-masked');
+                    return `<td class="${clsList.join(' ')}">${maskPhone(v)}</td>`;
+                }
+
                 // 숫자
                 if (typeof v === 'number') {
-                    return `<td class="cell-num">${v % 1 === 0 ? v : v.toFixed(2)}</td>`;
+                    const formatted = v % 1 === 0 ? v : v.toFixed(2);
+                    return `<td class="${clsList.join(' ')}">${formatted}</td>`;
                 }
-                return `<td>${v ?? ''}</td>`;
+                
+                const clsAttr = clsList.length > 0 ? ` class="${clsList.join(' ')}"` : '';
+                return `<td${clsAttr}>${v ?? ''}</td>`;
             }).join('');
             return `<tr>${tds}</tr>`;
         }).join('');
