@@ -20,7 +20,7 @@ import math
 import re
 import openpyxl
 
-EXCEL_FILE = "2026-1_MIS_Score.xlsx"
+EXCEL_FILE = "2026-1학기_경영정보론_서창갑.xlsx"
 OUTPUT_FILE = "docs/data.json"
 
 # 컬럼 인덱스 (0-based)
@@ -111,7 +111,7 @@ def build():
         "attendance": find_idx(["출석"]),
         "midterm": find_idx(["중간"]),
         "final": find_idx(["기말"]),
-        "total": find_idx(["총점"]),
+        "total": find_idx(["총점", "성적"]),
         "rank": find_idx(["석차", "순위", "등수"], exclude_keywords=["결석"]),
         "grade": find_idx(["학점", "평점", "등급"]),
         "absences": find_idx(["결석", "결석횟수", "결석차시"]),

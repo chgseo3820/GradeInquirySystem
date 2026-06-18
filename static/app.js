@@ -21,7 +21,7 @@
         { key: 'attendance_score', label: '출석', icon: '?', max: 30, cssClass: 'card-attendance' },
         { key: 'midterm_score', label: '중간고사', icon: '?', max: 20, cssClass: 'card-midterm' },
         { key: 'final_score', label: '기말고사', icon: '?', max: 20, cssClass: 'card-final' },
-        { key: 'total_score', label: '총점', icon: '?', max: 100, cssClass: 'card-total' },
+        { key: 'total_score', label: '성적', icon: '🏆', max: 100, cssClass: 'card-total' },
     ];
 
     // ?? Chart Instance ??

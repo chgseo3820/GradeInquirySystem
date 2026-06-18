@@ -673,11 +673,11 @@
         const { professor, course, evaluation } = adminConfig;
 
         // 헤더 행
-        const baseHeaders = ['학번', '이름', '학년', '학과', '분반', '전화번호', '상대평가제외'];
+        const baseHeaders = ['학번', '이름', '학년', '학과', '분반', '전화번호', '상대평가제외사유'];
         const evalHeaders = evaluation.map(e => `${e.label}(${e.ratio}%)`);
-        const headers = [...baseHeaders, ...evalHeaders, '특별점수', '총점', '석차', '학점', '결석', '비고'];
+        const headers = [...baseHeaders, ...evalHeaders, '특별점수', '성적', '석차', '평점', '결석', '비고'];
 
-        // 상대평가제외 유효값 안내 (데이터 유효성 검사용)
+        // 상대평가제외사유 유효값 안내 (데이터 유효성 검사용)
         // 외국인, 만학도, 장애인 중 선택 또는 비워둠
 
         // 샘플 데이터 행 (3개 예시)
@@ -695,8 +695,8 @@
         const colWidths = headers.map(h => ({ wch: Math.max(h.length * 2, 12) }));
         ws['!cols'] = colWidths;
 
-        // 상대평가제외 열에 셀 코멘트 추가 (마우스 올릴 때만 표시)
-        const exclColIdx = baseHeaders.indexOf('상대평가제외');
+        // 상대평가제외사유 열에 셀 코멘트 추가 (마우스 올릴 때만 표시)
+        const exclColIdx = baseHeaders.indexOf('상대평가제외사유');
         const exclCellRef = XLSX.utils.encode_cell({ r: 0, c: exclColIdx });
         if (!ws[exclCellRef].c) ws[exclCellRef].c = [];
         ws[exclCellRef].c.push({ a: 'ScoreQuery', t: '외국인, 만학도, 장애인 중 선택\n해당 없으면 비워두세요', s: { sz: 10 } });
@@ -1121,7 +1121,7 @@
         });
 
         // 뒷부분 헤더도 확인
-        const hasTail = ['총점', '석차', '학점'].some(t => headers.some(h => h.includes(t)));
+        const hasTail = ['총점', '성적', '석차', '학점', '평점'].some(t => headers.some(h => h.includes(t)));
 
         return allEvalMatch && hasTail;
     }
@@ -1259,9 +1259,9 @@
             dept:      find(['학과', '학부', '전공']),
             classNum:  find(['분반', '반']),
             phone:     find(['전화', '핸드폰', '연락처', '휴대폰']),
-            exclude:   find(['상대평가제외', '제외']),
+            exclude:   find(['상대평가제외사유', '상대평가제외', '제외']),
             special:   find(['특별점수', '특별']),
-            total:     find(['총점', '합계']),
+            total:     find(['총점', '성적', '합계']),
             rank:      find(['석차', '순위', '등수'], ['결석']),
             grade:     find(['학점', '평점', '등급']),
             absences:  find(['결석', '결석횟수', '결석차시']),
@@ -1374,9 +1374,9 @@
             }
         });
 
-        // 총점, 석차, 학점
+        // 성적, 석차, 평점
         ['total', 'rank', 'grade', 'absences', 'remark'].forEach(key => {
-            const labels = { total: '총점', rank: '석차', grade: '학점', absences: '결석', remark: '비고' };
+            const labels = { total: '성적', rank: '석차', grade: '평점', absences: '결석', remark: '비고' };
             if (mapping[key]) {
                 checks.push({ status: 'pass', label: labels[key], detail: '확인됨' });
             } else {
@@ -1481,12 +1481,12 @@
             : mapping.evalDetected;
 
         // 샘플 규격 헤더
-        const baseHeaders = ['학번', '이름', '학년', '학과', '분반', '전화번호', '상대평가제외'];
+        const baseHeaders = ['학번', '이름', '학년', '학과', '분반', '전화번호', '상대평가제외사유'];
         const evalHeaders = effectiveEval.map(e => {
             const r = e.ratio > 0 ? `(${e.ratio}%)` : '';
             return `${e.label}${r}`;
         });
-        const tailHeaders = ['특별점수', '총점', '석차', '학점', '결석', '비고'];
+        const tailHeaders = ['특별점수', '성적', '석차', '평점', '결석', '비고'];
         const sampleHeaders = [...baseHeaders, ...evalHeaders, ...tailHeaders];
 
         // 각 행을 샘플 규격으로 변환
@@ -1498,7 +1498,7 @@
             out['학과'] = mapping.dept ? (row[mapping.dept] ?? '') : '';
             out['분반'] = mapping.classNum ? (row[mapping.classNum] ?? 1) : 1;
             out['전화번호'] = mapping.phone ? (row[mapping.phone] ?? '') : '';
-            out['상대평가제외'] = mapping.exclude ? (row[mapping.exclude] ?? '') : '';
+            out['상대평가제외사유'] = mapping.exclude ? (row[mapping.exclude] ?? '') : '';
 
             // 평가 항목
             effectiveEval.forEach((e, idx) => {
@@ -1508,9 +1508,9 @@
             });
 
             out['특별점수'] = mapping.special ? (row[mapping.special] ?? '') : '';
-            out['총점'] = mapping.total ? (row[mapping.total] ?? '') : '';
+            out['성적'] = mapping.total ? (row[mapping.total] ?? '') : '';
             out['석차'] = mapping.rank ? (row[mapping.rank] ?? '') : '';
-            out['학점'] = mapping.grade ? (row[mapping.grade] ?? '') : '';
+            out['평점'] = mapping.grade ? (row[mapping.grade] ?? '') : '';
             out['결석'] = mapping.absences ? (row[mapping.absences] ?? 0) : 0;
             out['비고'] = mapping.remark ? (row[mapping.remark] ?? '') : '';
 
@@ -1780,7 +1780,7 @@
                         const sVal = scores[`${evalItem.id}_score`];
                         cRowRef[headerName] = sVal !== null ? sVal : '';
                     });
-                    cRowRef['총점'] = finalTotal;
+                    cRowRef['성적'] = finalTotal;
                 }
             }
             rowIndex++;
