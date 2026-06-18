@@ -237,8 +237,9 @@
         }
     }
 
-    // ── 교수 정보관리 통합 모달 ──
+    // ── 교수 개인정보 수정 모달 ──
     function showProfessorInfoMgmtModal(initialTab = 'info') {
+        const infoOnly = initialTab === 'info';
         const modalId = 'professor-info-mgmt-modal';
         const existing = document.getElementById(modalId);
         if (existing) existing.remove();
@@ -271,12 +272,12 @@
                     box-sizing: border-box;
                 ">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
-                        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #f59e0b;">⚙️ 교수 정보 관리</h3>
+                        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #f59e0b;">👤 개인정보 수정</h3>
                         <button id="close-mgmt-modal-btn" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer; padding: 0 4px; line-height: 1;">&times;</button>
                     </div>
 
                     <!-- Tab Headers -->
-                    <div style="display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <div id="mgmt-tab-header" style="display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
                         <button id="tab-btn-info" style="flex: 1; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid transparent; border-radius: 6px; background: none; color: #94a3b8; cursor: pointer; transition: all 0.2s;">👤 정보수정</button>
                         <button id="tab-btn-pw" style="flex: 1; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid transparent; border-radius: 6px; background: none; color: #94a3b8; cursor: pointer; transition: all 0.2s;">🔑 비밀번호</button>
                         <button id="tab-btn-delete" style="flex: 1; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid transparent; border-radius: 6px; background: none; color: #94a3b8; cursor: pointer; transition: all 0.2s;">🗑️ 회원탈퇴</button>
@@ -357,6 +358,7 @@
 
         const modal = document.getElementById(modalId);
         const closeBtn = document.getElementById('close-mgmt-modal-btn');
+        const tabHeader = document.getElementById('mgmt-tab-header');
         const tabBtnInfo = document.getElementById('tab-btn-info');
         const tabBtnPw = document.getElementById('tab-btn-pw');
         const tabBtnDelete = document.getElementById('tab-btn-delete');
@@ -375,6 +377,10 @@
             tabBtnInfo.style.display = 'none';
             tabBtnDelete.style.display = 'none';
             initialTab = 'pw';
+        } else if (infoOnly) {
+            tabHeader.style.display = 'none';
+            tabContentPw.remove();
+            tabContentDelete.remove();
         }
 
         // 닫기
@@ -390,7 +396,7 @@
             });
             // 본문 상태 초기화
             [tabContentInfo, tabContentPw, tabContentDelete].forEach(pane => {
-                pane.style.display = 'none';
+                if (pane) pane.style.display = 'none';
             });
 
             if (tabName === 'info') {
@@ -398,12 +404,12 @@
                 tabBtnInfo.style.borderColor = 'rgba(59, 130, 246, 0.4)';
                 tabBtnInfo.style.color = '#60a5fa';
                 tabContentInfo.style.display = 'block';
-            } else if (tabName === 'pw') {
+            } else if (tabName === 'pw' && tabContentPw) {
                 tabBtnPw.style.background = 'rgba(245, 158, 11, 0.15)';
                 tabBtnPw.style.borderColor = 'rgba(245, 158, 11, 0.4)';
                 tabBtnPw.style.color = '#fbbf24';
                 tabContentPw.style.display = 'block';
-            } else if (tabName === 'delete') {
+            } else if (tabName === 'delete' && tabContentDelete) {
                 tabBtnDelete.style.background = 'rgba(239, 68, 68, 0.15)';
                 tabBtnDelete.style.borderColor = 'rgba(239, 68, 68, 0.4)';
                 tabBtnDelete.style.color = '#fca5a5';
@@ -414,9 +420,9 @@
         // 초기 탭 설정
         switchTab(initialTab);
 
-        tabBtnInfo.onclick = () => switchTab('info');
-        tabBtnPw.onclick = () => switchTab('pw');
-        tabBtnDelete.onclick = () => switchTab('delete');
+        tabBtnInfo.onclick = infoOnly ? null : () => switchTab('info');
+        tabBtnPw.onclick = infoOnly ? null : () => switchTab('pw');
+        tabBtnDelete.onclick = infoOnly ? null : () => switchTab('delete');
 
         // ── 1. 정보 수정 비즈니스 로직 ──
         const saveInfoBtn = document.getElementById('save-info-btn');
@@ -462,7 +468,7 @@
         // ── 2. 비밀번호 변경 비즈니스 로직 ──
         const savePwBtn = document.getElementById('save-pw-btn');
         const pwErr = document.getElementById('mgmt-pw-error');
-        savePwBtn.onclick = async () => {
+        if (savePwBtn) savePwBtn.onclick = async () => {
             pwErr.style.display = 'none';
             const currentVal = document.getElementById('mgmt-pw-current').value;
             const newVal = document.getElementById('mgmt-pw-new').value;
@@ -518,7 +524,7 @@
         const agreeChk = document.getElementById('agree-delete-chk');
         const execDeleteBtn = document.getElementById('execute-delete-btn');
 
-        agreeChk.onchange = (e) => {
+        if (agreeChk && execDeleteBtn) agreeChk.onchange = (e) => {
             const isChecked = e.target.checked;
             execDeleteBtn.disabled = !isChecked;
             if (isChecked) {
@@ -530,7 +536,7 @@
             }
         };
 
-        execDeleteBtn.onclick = () => {
+        if (execDeleteBtn) execDeleteBtn.onclick = () => {
             if (currentUser.isMaster) {
                 alert('⚠️ 마스터 계정은 탈퇴할 수 없습니다.');
                 return;
@@ -2504,27 +2510,8 @@
         const adminLogout = document.getElementById('admin-logout-btn');
         if (adminLogout) adminLogout.addEventListener('click', handleLogoutAction);
 
-        const adminEditInfo = document.getElementById('admin-edit-info-btn');
-        if (adminEditInfo) adminEditInfo.addEventListener('click', () => showProfessorInfoMgmtModal('info'));
-
-        const adminChangePw = document.getElementById('admin-change-pw-btn');
-        if (adminChangePw) adminChangePw.addEventListener('click', () => showProfessorInfoMgmtModal('pw'));
-
-        const adminDeleteAccount = document.getElementById('admin-delete-account-btn');
-        if (adminDeleteAccount) adminDeleteAccount.addEventListener('click', () => showProfessorInfoMgmtModal('delete'));
-
         const infoMgmtBtn = document.getElementById('admin-info-mgmt-btn');
-        if (infoMgmtBtn) {
-            infoMgmtBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                infoMgmtBtn.parentElement.classList.toggle('active');
-            });
-        }
-        document.addEventListener('click', () => {
-            if (infoMgmtBtn) {
-                infoMgmtBtn.parentElement.classList.remove('active');
-            }
-        });
+        if (infoMgmtBtn) infoMgmtBtn.addEventListener('click', () => showProfessorInfoMgmtModal('info'));
 
         try {
             const sess = sessionStorage.getItem('scorequery_session');
@@ -3144,11 +3131,6 @@
         adminSection.classList.remove('wide-layout');
         if (mainContainer) {
             mainContainer.classList.remove('wide-layout');
-        }
-
-        const deleteBtn = document.getElementById('admin-delete-account-btn');
-        if (deleteBtn) {
-            deleteBtn.style.display = currentUser && currentUser.isMaster ? 'none' : '';
         }
 
         // 1. 기존 설정 로드하여 복원 (확인 절차 생략)
