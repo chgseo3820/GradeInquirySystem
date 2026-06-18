@@ -538,6 +538,21 @@
             }
 
             const newHashed = await sha256(newVal);
+            const gasUrl = localStorage.getItem('scorequery_gas_url');
+            if (gasUrl) {
+                try {
+                    // GAS 데이터베이스에 원격 비밀번호 변경 요청
+                    await callGasApi('change_pw', { newPwHash: newHashed }, {
+                        email: currentUser.email,
+                        pwHash: currentUser.pw
+                    });
+                } catch (err) {
+                    pwErr.textContent = '❌ 원격 비밀번호 변경에 실패했습니다: ' + (err.message || '네트워크 오류');
+                    pwErr.style.display = 'block';
+                    return;
+                }
+            }
+
             const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
             const idx = users.findIndex(u => u.email === currentUser.email);
             if (idx >= 0) {

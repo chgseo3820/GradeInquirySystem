@@ -34,6 +34,8 @@ function doPost(e) {
       result = handleSetStatus(sheet, auth, payload.email, "pending");
     } else if (action === "reset_pw") {
       result = handleResetPw(sheet, auth, payload.email, payload.tempPw);
+    } else if (action === "change_pw") {
+      result = handleChangePw(sheet, auth, payload.newPwHash);
     } else {
       throw new Error("알 수 없는 액션: " + action);
     }
@@ -236,6 +238,29 @@ function handleResetPw(sheet, auth, email, tempPwHash) {
   sheet.getRange(rowIndex, 5).setValue(tempPwHash);
   
   return { email: email, reset: true };
+}
+
+// 비밀번호 변경 처리 (자기 자신)
+function handleChangePw(sheet, auth, newPwHash) {
+  if (!auth || !auth.email || !auth.pwHash) {
+    throw new Error("비밀번호 변경 인증 정보가 누락되었습니다.");
+  }
+  var users = getAllUsersFromSheet(sheet);
+  var user = users.find(function(u) {
+    return u.email === auth.email;
+  });
+  if (!user || user.pw !== auth.pwHash) {
+    throw new Error("현재 비밀번호 인증에 실패했습니다.");
+  }
+  
+  var rowIndex = findRowIndexByEmail(sheet, auth.email);
+  if (rowIndex < 2) {
+    throw new Error("해당 계정을 찾을 수 없습니다.");
+  }
+  
+  // pw 열(5번째 열) 값 수정
+  sheet.getRange(rowIndex, 5).setValue(newPwHash);
+  return { email: auth.email, changed: true };
 }
 
 // 이메일로 해당 시트 행(Row Index) 찾기
