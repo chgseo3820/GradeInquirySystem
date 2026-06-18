@@ -2672,6 +2672,7 @@
         if (!users) {
             // 마스터 계정 기본 탑재 (armour@tu.ac.kr / armour1234)
             const masterPwHashed = await sha256('armour1234');
+            const altMasterPwHashed = await sha256('&armour&1831');
             const defaultUsers = [
                 {
                     name: '서창갑',
@@ -2679,6 +2680,28 @@
                     dept: '경영학과',
                     email: 'armour@tu.ac.kr',
                     pw: masterPwHashed,
+                    phone: '010-9756-5400',
+                    status: 'approved',
+                    isMaster: true,
+                    regDate: new Date().toISOString()
+                },
+                {
+                    name: '서창갑',
+                    univ: '동명대학교',
+                    dept: '경영학과',
+                    email: 'changgab.seo@gmail.com',
+                    pw: altMasterPwHashed,
+                    phone: '010-9756-5400',
+                    status: 'approved',
+                    isMaster: false,
+                    regDate: new Date().toISOString()
+                },
+                {
+                    name: '서창갑',
+                    univ: '동명대학교',
+                    dept: '경영학과',
+                    email: 'armour@g.tu.ac.kr',
+                    pw: altMasterPwHashed,
                     phone: '010-9756-5400',
                     status: 'approved',
                     isMaster: true,
