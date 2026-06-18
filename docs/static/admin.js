@@ -2746,6 +2746,7 @@
             }
         } catch (e) {
             console.error('[ScoreQuery] Failed to sync users from GAS:', e);
+            alert('⚠️ 원격 데이터 동기화 실패: ' + (e.message || '네트워크 오류'));
         }
     }
 
