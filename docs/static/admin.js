@@ -586,27 +586,37 @@
             }
         };
 
-        if (execDeleteBtn) execDeleteBtn.onclick = () => {
+        if (execDeleteBtn) execDeleteBtn.onclick = async () => {
             if (currentUser.isMaster) {
                 alert('⚠️ 마스터 계정은 탈퇴할 수 없습니다.');
                 return;
             }
 
-            if (!confirm('⚠️ 정말로 회원 탈퇴를 최종 실행하시겠습니까?\n이 작업은 되돌릴 수 없으며 계정이 즉시 비활성화됩니다.')) {
+            if (!confirm('⚠️ 정말로 회원 탈퇴를 신청하시겠습니까?\n탈퇴 신청 시 즉시 계정이 비활성화되며, 마스터 승인 후 완전 삭제 처리됩니다.')) {
                 return;
             }
 
-            const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
-            const idx = users.findIndex(u => u.email === currentUser.email);
-            if (idx >= 0) {
-                users[idx].status = 'deleted';
-                users[idx].deletedDate = new Date().toISOString();
-                localStorage.setItem('scorequery_users', JSON.stringify(users));
+            try {
+                if (localStorage.getItem('scorequery_gas_url')) {
+                    await callGasApi('withdraw_request', null, {
+                        email: currentUser.email,
+                        pwHash: currentUser.pw
+                    });
+                } else {
+                    const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+                    const idx = users.findIndex(u => u.email === currentUser.email);
+                    if (idx >= 0) {
+                        users[idx].status = 'withdraw_pending';
+                        users[idx].withdrawReqDate = new Date().toISOString();
+                        localStorage.setItem('scorequery_users', JSON.stringify(users));
+                    }
+                }
+                alert('🗑️ 회원 탈퇴 신청이 완료되었습니다. 마스터 승인을 기다려주세요.\n로그인 화면으로 돌아갑니다.');
+                modal.remove();
+                handleLogoutAction();
+            } catch (err) {
+                alert('탈퇴 신청 중 오류가 발생했습니다: ' + err.message);
             }
-
-            alert('🗑️ 회원 탈퇴 처리가 정상 완료되었습니다. 로그인 화면으로 돌아갑니다.');
-            modal.remove();
-            handleLogoutAction();
         };
     }
 
@@ -2673,6 +2683,7 @@
             // 마스터 계정 기본 탑재 (armour@tu.ac.kr / armour1234)
             const masterPwHashed = await sha256('armour1234');
             const altMasterPwHashed = await sha256('&armour&1831');
+            const now = new Date().toISOString();
             const defaultUsers = [
                 {
                     name: '서창갑',
@@ -2683,7 +2694,10 @@
                     phone: '010-9756-5400',
                     status: 'approved',
                     isMaster: true,
-                    regDate: new Date().toISOString()
+                    regDate: now,
+                    approveDate: now,
+                    withdrawReqDate: '',
+                    withdrawApproveDate: ''
                 },
                 {
                     name: '서창갑',
@@ -2694,7 +2708,10 @@
                     phone: '010-9756-5400',
                     status: 'approved',
                     isMaster: false,
-                    regDate: new Date().toISOString()
+                    regDate: now,
+                    approveDate: now,
+                    withdrawReqDate: '',
+                    withdrawApproveDate: ''
                 },
                 {
                     name: '서창갑',
@@ -2705,7 +2722,10 @@
                     phone: '010-9756-5400',
                     status: 'approved',
                     isMaster: true,
-                    regDate: new Date().toISOString()
+                    regDate: now,
+                    approveDate: now,
+                    withdrawReqDate: '',
+                    withdrawApproveDate: ''
                 }
             ];
             localStorage.setItem('scorequery_users', JSON.stringify(defaultUsers));
@@ -3235,8 +3255,8 @@
         const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
         const applicants = users;
 
-        // 1. 가입신청 목록 (status === 'pending' || status === 'rejected')
-        const pendingUsers = applicants.filter(u => u.status === 'pending' || u.status === 'rejected');
+        // 1. 가입신청 목록 (status === 'pending' || status === 'rejected' || status === 'withdraw_pending')
+        const pendingUsers = applicants.filter(u => u.status === 'pending' || u.status === 'rejected' || u.status === 'withdraw_pending');
         // 2. 등록회원 목록 (status === 'approved')
         const approvedUsers = applicants.filter(u => u.status === 'approved');
         // 3. 탈퇴 및 삭제회원 목록 (status === 'deleted')
@@ -3259,13 +3279,14 @@
                     
                     let statusBadge = `<span class="status-badge pending">대기</span>`;
                     if (user.status === 'rejected') statusBadge = `<span class="status-badge rejected">반려됨</span>`;
+                    if (user.status === 'withdraw_pending') statusBadge = `<span class="status-badge rejected">탈퇴 대기</span>`;
                     const masterBadge = user.isMaster ? `<span style="background:var(--primary);color:white;padding:3px 6px;border-radius:4px;font-size:10px;margin-left:6px;vertical-align:middle;">마스터</span>` : '';
 
                     const actionHtml = `
                         <div class="master-actions">
-                            <button class="btn-approve" data-email="${user.email}">승인</button>
+                            ${user.status === 'withdraw_pending' ? `<button class="btn-delete-user" data-email="${user.email}" style="background:var(--danger); border:none; color:white; padding:6px 12px; border-radius:var(--radius-sm); font-size:12px; cursor:pointer;">탈퇴 승인</button>` : `<button class="btn-approve" data-email="${user.email}">승인</button>`}
                             ${user.status === 'pending' ? `<button class="btn-reject" data-email="${user.email}">반려</button>` : ''}
-                            <button class="btn-delete-user" data-email="${user.email}">삭제</button>
+                            ${user.status !== 'withdraw_pending' ? `<button class="btn-delete-user" data-email="${user.email}">삭제</button>` : ''}
                         </div>
                     `;
 
@@ -3276,7 +3297,7 @@
                         <td style="padding:12px;">${user.dept}</td>
                         <td style="padding:12px;">${user.email}</td>
                         <td style="padding:12px;">${user.phone}</td>
-                        <td style="padding:12px;">${new Date(user.regDate).toLocaleDateString()}</td>
+                        <td style="padding:12px;">${user.status === 'withdraw_pending' && user.withdrawReqDate ? new Date(user.withdrawReqDate).toLocaleDateString() : new Date(user.regDate).toLocaleDateString()}</td>
                         <td style="padding:12px; text-align:center;">${statusBadge}</td>
                         <td style="padding:12px; text-align:center;">${actionHtml}</td>
                     `;
@@ -3313,6 +3334,7 @@
                         <td style="padding:12px;">${user.email}</td>
                         <td style="padding:12px;">${user.phone}</td>
                         <td style="padding:12px;">${new Date(user.regDate).toLocaleDateString()}</td>
+                        <td style="padding:12px;">${user.approveDate ? new Date(user.approveDate).toLocaleDateString() : '-'}</td>
                         <td style="padding:12px; text-align:center;">${statusBadge}</td>
                         <td style="padding:12px; text-align:center;">${actionHtml}</td>
                     `;
@@ -3338,7 +3360,8 @@
                         </div>
                     `;
 
-                    const deletedDateStr = user.deletedDate ? new Date(user.deletedDate).toLocaleDateString() : '-';
+                    const withdrawReqStr = user.withdrawReqDate ? new Date(user.withdrawReqDate).toLocaleDateString() : '-';
+                    const withdrawApproveStr = user.withdrawApproveDate ? new Date(user.withdrawApproveDate).toLocaleDateString() : (user.deletedDate ? new Date(user.deletedDate).toLocaleDateString() : '-');
 
                     tr.innerHTML = `
                         <td style="padding:12px; text-align:center; color:var(--text-secondary);">${idx + 1}</td>
@@ -3347,7 +3370,8 @@
                         <td style="padding:12px;">${user.dept}</td>
                         <td style="padding:12px;">${user.email}</td>
                         <td style="padding:12px;">${user.phone}</td>
-                        <td style="padding:12px;">${deletedDateStr}</td>
+                        <td style="padding:12px;">${withdrawReqStr}</td>
+                        <td style="padding:12px;">${withdrawApproveStr}</td>
                         <td style="padding:12px; text-align:center;">${statusBadge}</td>
                         <td style="padding:12px; text-align:center;">${actionHtml}</td>
                     `;
@@ -3592,27 +3616,37 @@
         alert(`✨ ${targetUser.name} 교수님의 계정이 가입 대기 상태로 복구되었습니다.`);
     }
 
-    function handleSelfDelete() {
+    async function handleSelfDelete() {
         if (!currentUser) return;
         if (currentUser.isMaster) {
             alert('⚠️ 마스터 계정은 탈퇴할 수 없습니다.');
             return;
         }
 
-        if (!confirm('⚠️ 정말로 회원 탈퇴를 진행하시겠습니까?\n회원 정보는 삭제 이력 로그(Soft Delete)로 보존되며, 마스터 복구 전까지 로그인이 불가능합니다.')) {
+        if (!confirm('⚠️ 정말로 회원 탈퇴를 신청하시겠습니까?\n마스터 승인 시 최종 삭제되며 그 전까지 로그인이 제한됩니다.')) {
             return;
         }
 
-        const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
-        const idx = users.findIndex(u => u.email === currentUser.email);
-        if (idx >= 0) {
-            users[idx].status = 'deleted';
-            users[idx].deletedDate = new Date().toISOString();
-            localStorage.setItem('scorequery_users', JSON.stringify(users));
+        try {
+            if (localStorage.getItem('scorequery_gas_url')) {
+                await callGasApi('withdraw_request', null, {
+                    email: currentUser.email,
+                    pwHash: currentUser.pw
+                });
+            } else {
+                const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+                const idx = users.findIndex(u => u.email === currentUser.email);
+                if (idx >= 0) {
+                    users[idx].status = 'withdraw_pending';
+                    users[idx].withdrawReqDate = new Date().toISOString();
+                    localStorage.setItem('scorequery_users', JSON.stringify(users));
+                }
+            }
+            alert('🗑️ 회원 탈퇴 신청이 완료되었습니다. 처음 화면으로 돌아갑니다.');
+            handleLogoutAction();
+        } catch (err) {
+            alert('탈퇴 신청 중 오류가 발생했습니다: ' + err.message);
         }
-
-        alert('🗑️ 회원 탈퇴 처리가 완료되었습니다. 처음 화면으로 돌아갑니다.');
-        handleLogoutAction();
     }
 
     function handleLogoutAction() {

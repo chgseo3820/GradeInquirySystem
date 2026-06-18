@@ -36,6 +36,8 @@ function doPost(e) {
       result = handleResetPw(sheet, auth, payload.email, payload.tempPw);
     } else if (action === "change_pw") {
       result = handleChangePw(sheet, auth, payload.newPwHash);
+    } else if (action === "withdraw_request") {
+      result = handleWithdrawRequest(sheet, auth);
     } else {
       throw new Error("알 수 없는 액션: " + action);
     }
@@ -61,9 +63,9 @@ function getOrCreateUsersSheet() {
   var sheet = ss.getSheetByName("Users");
   if (!sheet) {
     sheet = ss.insertSheet("Users");
-    sheet.appendRow(["email", "name", "univ", "dept", "pw", "phone", "status", "isMaster", "regDate"]);
+    sheet.appendRow(["email", "name", "univ", "dept", "pw", "phone", "status", "isMaster", "regDate", "approveDate", "withdrawReqDate", "withdrawApproveDate"]);
     // 보기 좋게 첫 행 고정 및 굵게
-    sheet.getRange(1, 1, 1, 9).setFontWeight("bold").setBackground("#f1f5f9");
+    sheet.getRange(1, 1, 1, 12).setFontWeight("bold").setBackground("#f1f5f9");
     sheet.setFrozenRows(1);
   }
   return sheet;
@@ -73,6 +75,7 @@ function getOrCreateUsersSheet() {
 function initializeMasterIfEmpty(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
+    var now = new Date().toISOString();
     // armour@tu.ac.kr / armour1234
     // armour1234의 SHA-256 해시값: 84668ba4df93b3f27df7a360fde2f72c4ad3d9020970a24c2ed2b144bd3540b6
     sheet.appendRow([
@@ -84,7 +87,10 @@ function initializeMasterIfEmpty(sheet) {
       "010-9756-5400",
       "approved",
       true,
-      new Date().toISOString()
+      now, // regDate
+      now, // approveDate
+      "",  // withdrawReqDate
+      ""   // withdrawApproveDate
     ]);
     
     // changgab.seo@gmail.com / &armour&1831
@@ -98,7 +104,10 @@ function initializeMasterIfEmpty(sheet) {
       "010-9756-5400",
       "approved",
       false,
-      new Date().toISOString()
+      now,
+      now,
+      "",
+      ""
     ]);
     
     // armour@g.tu.ac.kr / &armour&1831
@@ -112,7 +121,10 @@ function initializeMasterIfEmpty(sheet) {
       "010-9756-5400",
       "approved",
       true,
-      new Date().toISOString()
+      now,
+      now,
+      "",
+      ""
     ]);
   }
 }
@@ -137,7 +149,7 @@ function getAllUsersFromSheet(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
   
-  var range = sheet.getRange(2, 1, lastRow - 1, 9);
+  var range = sheet.getRange(2, 1, lastRow - 1, 12);
   var values = range.getValues();
   
   return values.map(function(row) {
@@ -150,7 +162,10 @@ function getAllUsersFromSheet(sheet) {
       phone: row[5],
       status: row[6],
       isMaster: row[7],
-      regDate: row[8]
+      regDate: row[8],
+      approveDate: row[9],
+      withdrawReqDate: row[10],
+      withdrawApproveDate: row[11]
     };
   });
 }
@@ -164,11 +179,13 @@ function handleRegister(sheet, user) {
     return u.email === user.email;
   });
   
+  var now = new Date().toISOString();
+
   if (exist) {
     if (exist.status === "deleted") {
       // 탈퇴한 계정인 경우 재가입 처리 (기존 행 업데이트)
       var rowIndex = findRowIndexByEmail(sheet, user.email);
-      sheet.getRange(rowIndex, 2, 1, 8).setValues([[
+      sheet.getRange(rowIndex, 2, 1, 11).setValues([[
         user.name,
         user.univ,
         user.dept,
@@ -176,7 +193,10 @@ function handleRegister(sheet, user) {
         user.phone,
         "pending",
         false,
-        new Date().toISOString()
+        now, // regDate
+        "",  // approveDate
+        "",  // withdrawReqDate
+        ""   // withdrawApproveDate
       ]]);
       return { email: user.email, status: "pending" };
     }
@@ -193,7 +213,10 @@ function handleRegister(sheet, user) {
     user.phone,
     "pending",
     false,
-    new Date().toISOString()
+    now,
+    "",
+    "",
+    ""
   ]);
   return { email: user.email, status: "pending" };
 }
@@ -221,7 +244,7 @@ function handleGetUsers(sheet, auth) {
   return getAllUsersFromSheet(sheet);
 }
 
-// 가입자 상태 일괄 처리 (승인/반려/삭제)
+// 가입자 상태 일괄 처리 (승인/반려/삭제/복구)
 function handleSetStatus(sheet, auth, email, status) {
   validateMasterAuth(sheet, auth);
   var rowIndex = findRowIndexByEmail(sheet, email);
@@ -231,6 +254,20 @@ function handleSetStatus(sheet, auth, email, status) {
   
   // status 열(7번째 열) 값 수정
   sheet.getRange(rowIndex, 7).setValue(status);
+  
+  var now = new Date().toISOString();
+
+  // 상태에 따른 날짜 자동 기록
+  if (status === "approved") {
+    // 10번째 열: approveDate
+    sheet.getRange(rowIndex, 10).setValue(now);
+  } else if (status === "deleted") {
+    // 12번째 열: withdrawApproveDate
+    sheet.getRange(rowIndex, 12).setValue(now);
+  } else if (status === "pending") {
+    // 복구(restore) 시 기존 승인/탈퇴 기록 초기화
+    sheet.getRange(rowIndex, 10, 1, 3).setValues([["", "", ""]]);
+  }
   
   // (선택 사항) 승인 완료 시 메일 발송 트리거
   if (status === "approved") {
@@ -252,6 +289,36 @@ function handleSetStatus(sheet, auth, email, status) {
   }
   
   return { email: email, status: status };
+}
+
+// 회원 자진 탈퇴 요청
+function handleWithdrawRequest(sheet, auth) {
+  if (!auth || !auth.email || !auth.pwHash) {
+    throw new Error("인증 정보가 누락되었습니다.");
+  }
+  var users = getAllUsersFromSheet(sheet);
+  var user = users.find(function(u) {
+    return u.email === auth.email;
+  });
+  if (!user || user.pw !== auth.pwHash) {
+    throw new Error("인증에 실패했습니다.");
+  }
+  
+  if (user.isMaster === true || user.isMaster === "true") {
+    throw new Error("마스터 계정은 탈퇴할 수 없습니다.");
+  }
+
+  var rowIndex = findRowIndexByEmail(sheet, auth.email);
+  if (rowIndex < 2) {
+    throw new Error("해당 계정을 찾을 수 없습니다.");
+  }
+
+  // 상태를 'withdraw_pending'으로 변경
+  sheet.getRange(rowIndex, 7).setValue("withdraw_pending");
+  // 11번째 열: withdrawReqDate 기록
+  sheet.getRange(rowIndex, 11).setValue(new Date().toISOString());
+
+  return { email: auth.email, status: "withdraw_pending" };
 }
 
 // 비밀번호 초기화 처리
