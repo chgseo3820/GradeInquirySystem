@@ -290,6 +290,31 @@ def save_data():
         return jsonify({"error": f"데이터 저장 실패: {str(e)}"}), 500
 
 
+@app.route("/api/save_public_config", methods=["POST", "OPTIONS"])
+def save_public_config():
+    if request.method == "OPTIONS":
+        return "", 204
+    try:
+        data = request.get_json(silent=True) or {}
+        gas_url = data.get("gas_url", "").strip()
+        
+        config_path = os.path.join("docs", "public-config.json")
+        config_data = {"gas_url": gas_url}
+        
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, ensure_ascii=False, indent=2)
+            
+        print(f"[ScoreQuery] public-config.json saved with gas_url: {gas_url}")
+        return jsonify({
+            "success": True,
+            "message": "자동 메일 발송 설정(public-config.json)이 저장되었습니다.",
+            "path": config_path
+        })
+    except Exception as e:
+        print(f"❌ 설정 저장 중 오류 발생: {e}")
+        return jsonify({"error": f"설정 저장 실패: {str(e)}"}), 500
+
+
 # ──────────────────────────────────────────────
 # Routes
 # ──────────────────────────────────────────────

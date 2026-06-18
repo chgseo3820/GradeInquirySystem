@@ -2674,6 +2674,45 @@
         }
     }
 
+    async function loadPublicConfig() {
+        try {
+            const res = await fetch('public-config.json?_t=' + Date.now());
+            if (res.ok) {
+                const config = await res.json();
+                if (config && config.gas_url) {
+                    localStorage.setItem('scorequery_gas_url', config.gas_url);
+                    console.log('[ScoreQuery] Public GAS URL loaded from server:', config.gas_url);
+                }
+            }
+        } catch (e) {
+            console.warn('[ScoreQuery] Failed to load public config from server:', e);
+        }
+    }
+
+    async function autoSavePublicConfigToServer(gasUrl) {
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/save_public_config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ gas_url: gasUrl })
+            });
+            if (response.ok) {
+                const result = await response.json();
+                console.log('[ScoreQuery] Auto-save public config success:', result.message);
+                return { success: true, message: result.message };
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                console.warn('[ScoreQuery] Auto-save public config failed on server:', errData.error);
+                return { success: false, error: errData.error || 'Server error' };
+            }
+        } catch (e) {
+            console.warn('[ScoreQuery] Auto-save public config connection failed (Flask server might be offline):', e);
+            return { success: false, error: 'Connection failed' };
+        }
+    }
+
     async function syncGasUrlFromServer() {
         try {
             const savedUrl = localStorage.getItem('scorequery_gas_url');
@@ -2693,6 +2732,7 @@
     // ── 인증 세션 처리 초기화 ──
     async function initAuth() {
         await initUsersDB();
+        await loadPublicConfig();
         await syncGasUrlFromServer();
 
         const loginForm = document.getElementById('admin-login-form');
@@ -2967,6 +3007,7 @@
                 saveBtn.onclick = () => {
                     const url = gasInput.value.trim();
                     localStorage.setItem('scorequery_gas_url', url);
+                    autoSavePublicConfigToServer(url);
                     alert(url ? '✅ 자동 메일 발송 URL이 저장되었습니다.' : 'ℹ️ 자동 메일 발송 URL이 삭제되었습니다. 이제 메일은 수동 발송됩니다.');
                 };
             }
