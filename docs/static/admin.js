@@ -3382,7 +3382,7 @@
                 `${targetUser.name} 교수님 안녕하십니까,\n\n` +
                 `성적 조회 및 관리 시스템(ScoreQuery)의 교수 회원가입 신청이 성공적으로 승인 완료되었음을 알려드립니다.\n\n` +
                 `이제 아래의 시스템 주소로 접속하신 뒤, 등록하신 교수 이메일(${targetUser.email})과 설정하신 비밀번호로 로그인하여 시스템에 진입하실 수 있습니다.\n\n` +
-                `- 시스템 접속 주소: https://armour-seo.github.io/ScoreQuery/\n\n` +
+                `- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n` +
                 `감사합니다.\n` +
                 `마스터 서창갑 드림\n`;
 
@@ -3435,7 +3435,7 @@
                 `- 이메일 ID: ${targetUser.email}\n` +
                 `- 임시 비밀번호: ${tempPw}\n\n` +
                 `아래의 시스템 주소로 접속하신 후, 임시 비밀번호로 로그인하여 안전한 비밀번호로 변경하여 사용해 주시기 바랍니다.\n\n` +
-                `- 시스템 접속 주소: https://armour-seo.github.io/ScoreQuery/\n\n` +
+                `- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n` +
                 `감사합니다.\n` +
                 `마스터 서창갑 드림\n`;
 

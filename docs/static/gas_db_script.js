@@ -86,6 +86,34 @@ function initializeMasterIfEmpty(sheet) {
       true,
       new Date().toISOString()
     ]);
+    
+    // changgab.seo@gmail.com / &armour&1831
+    // &armour&1831의 SHA-256 해시값: e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d
+    sheet.appendRow([
+      "changgab.seo@gmail.com",
+      "서창갑",
+      "동명대학교",
+      "경영학과",
+      "e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d",
+      "010-9756-5400",
+      "approved",
+      false,
+      new Date().toISOString()
+    ]);
+    
+    // armour@g.tu.ac.kr / &armour&1831
+    // &armour&1831의 SHA-256 해시값: e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d
+    sheet.appendRow([
+      "armour@g.tu.ac.kr",
+      "서창갑",
+      "동명대학교",
+      "경영학과",
+      "e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d",
+      "010-9756-5400",
+      "approved",
+      true,
+      new Date().toISOString()
+    ]);
   }
 }
 
@@ -214,7 +242,7 @@ function handleSetStatus(sheet, auth, email, status) {
         body: userName + " 교수님 안녕하십니까,\n\n" +
               "성적 조회 및 관리 시스템(ScoreQuery)의 교수 회원가입 신청이 성공적으로 승인 완료되었음을 알려드립니다.\n\n" +
               "이제 등록하신 교수 이메일(" + email + ")과 설정하신 비밀번호로 로그인하여 시스템에 진입하실 수 있습니다.\n\n" +
-              "- 시스템 접속 주소: https://armour-seo.github.io/ScoreQuery/\n\n" +
+              "- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
               "감사합니다.\n" +
               "마스터 서창갑 드림"
       });
