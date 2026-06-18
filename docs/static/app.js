@@ -138,35 +138,68 @@
 
     // ── 공시 상태 확인 ──
     function checkPublishStatus(course) {
-        // 만약 data.json 등에서 직접 가져온 파일 소스이거나 이미 published가 강제 지정되어 있다면 즉시 허용
-        if (course && (course._source === 'data.json' || course.published === true)) {
-            return { available: true };
+        if (!course) {
+            return { available: false, message: '📢 선택된 과목 정보가 올바르지 않습니다.' };
         }
+
+        // 1) localStorage에서 먼저 최신 공시 정보를 체크해 봅니다.
         const key = `scorequery_publish_${course.year}_${course.semester}_${course.name}`;
+        let info = null;
         try {
             const raw = localStorage.getItem(key);
-            if (!raw) {
-                if (course.published) return { available: true };
+            if (raw) {
+                info = JSON.parse(raw);
+            }
+        } catch { /* ignore */ }
+
+        // 2) localStorage에 없거나 published 정보가 없다면 과목에 내장된 정보를 폴백으로 씁니다.
+        if (!info) {
+            if (course.published) {
+                info = {
+                    published: true,
+                    publishStartDate: course.publishStartDate,
+                    publishEndDate: course.publishEndDate,
+                    publishDate: course.publishDate
+                };
+            } else {
                 return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.\n교수님께서 공시한 후 조회할 수 있습니다.' };
             }
-            const info = JSON.parse(raw);
-            if (!info.published) {
-                return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.\n교수님께서 공시한 후 조회할 수 있습니다.' };
-            }
-            const publishDate = new Date(info.publishDate);
-            const now = new Date();
-            if (now < publishDate) {
-                const dateStr = publishDate.toLocaleString('ko-KR', {
-                    year:'numeric', month:'long', day:'numeric',
-                    hour:'2-digit', minute:'2-digit'
-                });
-                return { available: false, message: `⏳ 성적 공시 예정입니다.\n${dateStr}부터 조회할 수 있습니다.` };
-            }
-            return { available: true };
-        } catch {
-            if (course && course.published) return { available: true };
-            return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.' };
         }
+
+        // 3) 공시 여부 확인 및 시간 범위 검증
+        if (!info.published) {
+            return { available: false, message: '📢 아직 성적이 공시되지 않았습니다.\n교수님께서 공시한 후 조회할 수 있습니다.' };
+        }
+
+        const startVal = info.publishStartDate || info.publishDate;
+        const endVal = info.publishEndDate;
+
+        if (!startVal) {
+            // 날짜가 없는데 published=true이면 즉시 허용
+            return { available: true };
+        }
+
+        const startDt = new Date(startVal);
+        const endDt = endVal ? new Date(endVal) : null;
+        const now = new Date();
+
+        if (now < startDt) {
+            const dateStr = startDt.toLocaleString('ko-KR', {
+                year:'numeric', month:'long', day:'numeric',
+                hour:'2-digit', minute:'2-digit'
+            });
+            return { available: false, message: `⏳ 성적 공시 예정입니다.\n${dateStr}부터 조회할 수 있습니다.` };
+        }
+
+        if (endDt && now > endDt) {
+            const dateStr = endDt.toLocaleString('ko-KR', {
+                year:'numeric', month:'long', day:'numeric',
+                hour:'2-digit', minute:'2-digit'
+            });
+            return { available: false, message: `🔒 성적 조회 기간이 종료되었습니다.\n(조회 기간: ~ ${dateStr} 까지)` };
+        }
+
+        return { available: true };
     }
 
     // ── 과목 목록 비동기 사전 로딩 ──
@@ -182,6 +215,8 @@
                     name: c.name,
                     professor: c.professor || null,
                     publishDate: c.publishDate || null,
+                    publishStartDate: c.publishStartDate || null,
+                    publishEndDate: c.publishEndDate || null,
                     published: c.published || false,
                     _source: c._source || 'local'
                 });
@@ -190,6 +225,8 @@
                 if (c.published) existing.published = true;
                 if (c.professor) existing.professor = c.professor;
                 if (c.publishDate) existing.publishDate = c.publishDate;
+                if (c.publishStartDate) existing.publishStartDate = c.publishStartDate;
+                if (c.publishEndDate) existing.publishEndDate = c.publishEndDate;
                 if (c._source === 'data.json') existing._source = 'data.json';
             }
         };
@@ -229,7 +266,10 @@
                         semester: c.semester,
                         name: c.name,
                         professor: parsed.professor,
-                        published: true,
+                        published: c.published !== undefined ? c.published : true,
+                        publishStartDate: c.publishStartDate || null,
+                        publishEndDate: c.publishEndDate || null,
+                        publishDate: c.publishDate || null,
                         _source: 'data.json'
                     });
                 } else {

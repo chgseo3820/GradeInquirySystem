@@ -1306,12 +1306,18 @@ select.form-input option {
 .wizard-nav {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     margin-top: var(--space-xl);
     gap: var(--space-md);
 }
 
 .wizard-nav .btn-back {
-    padding: 10px 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 160px;
+    height: 44px;
+    padding: 0 24px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-sm);
@@ -1328,9 +1334,14 @@ select.form-input option {
 }
 
 .wizard-nav .btn-next {
-    padding: 10px 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 160px;
+    height: 44px;
+    padding: 0 24px;
     background: var(--gradient-primary);
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
     color: #fff;
     font-size: 0.875rem;
@@ -1739,8 +1750,8 @@ select.form-input option {
 
 /* ── Publish Card ── */
 .publish-card {
-    margin-top: var(--space-lg);
-    padding: 20px 24px;
+    margin-top: var(--space-md);
+    padding: 16px 20px;
     border: 1px solid rgba(251, 191, 36, 0.3);
     border-radius: var(--radius-md);
     background: rgba(251, 191, 36, 0.06);
@@ -1750,13 +1761,13 @@ select.form-input option {
     font-size: 1rem;
     font-weight: 700;
     color: #fbbf24;
-    margin-bottom: var(--space-sm);
+    margin-bottom: 6px;
 }
 
 .publish-status {
     font-size: 0.85rem;
     color: var(--text-secondary);
-    margin-bottom: var(--space-md);
+    margin-bottom: 12px;
     min-height: 1.4em;
 }
 
@@ -1764,10 +1775,20 @@ select.form-input option {
     color: #6ee7b7;
 }
 
+.publish-status.expired {
+    color: #f87171;
+}
+
 .publish-form {
     display: flex;
-    align-items: flex-end;
-    gap: var(--space-md);
+    flex-direction: column;
+    gap: 12px;
+}
+
+.publish-fields-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
     flex-wrap: wrap;
 }
 
@@ -1797,6 +1818,12 @@ select.form-input option {
 .publish-input:focus {
     outline: none;
     border-color: rgba(251, 191, 36, 0.5);
+}
+
+.publish-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
 }
 
 .publish-actions {
@@ -1856,11 +1883,11 @@ select.form-input option {
 .preview-table thead {
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: 10;
 }
 
 .preview-table th {
-    background: rgba(99, 102, 241, 0.15);
+    background: #151c2c;
     color: #c7d2fe;
     padding: 8px 12px;
     text-align: left;
@@ -2481,4 +2508,159 @@ select.form-input option {
 .schedule-notice-card,
 .lock-timer-card {
     animation: fadeSlideUp 0.5s ease-out;
+}
+
+/* ── Wizard Step 1: Course List & Filter ── */
+.course-list-box {
+    margin-top: 15px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+.course-filter-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.course-filter-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.course-filter-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    background: var(--bg-glass);
+    color: var(--text-main);
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+}
+
+.course-filter-select option {
+    background-color: #111827;
+    color: var(--text-main);
+}
+
+.course-filter-select:focus {
+    border-color: rgba(99, 102, 241, 0.5);
+}
+
+.course-list-ul-container {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.course-list-ul-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.course-list-ul-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.01);
+    border-radius: 3px;
+}
+
+.course-list-ul-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.course-list-ul-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.course-item-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    text-align: left;
+}
+
+.course-item-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+.course-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.course-item-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.course-item-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.course-item-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-course-action {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+}
+
+.btn-course-edit {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #c7d2fe;
+}
+
+.btn-course-edit:hover {
+    background: rgba(99, 102, 241, 0.4);
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #fff;
+}
+
+.btn-course-delete {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.btn-course-delete:hover {
+    background: rgba(239, 68, 68, 0.35);
+    border-color: rgba(239, 68, 68, 0.55);
+    color: #fff;
+}
+
+.course-list-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px dashed var(--border-glass);
+    border-radius: var(--radius-sm);
 }
