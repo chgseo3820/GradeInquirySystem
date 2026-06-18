@@ -24,14 +24,14 @@ echo [3/4] 임시 디렉터리 내 Git 저장소 초기화 및 커밋...
 cd deploy_temp
 git init >nul
 git checkout -b gh-pages >nul
-git config user.name "armour-seo"
+git config user.name "chgseo3820"
 git config user.email "armour@tu.ac.kr"
 git add . >nul
 git commit -m "Deploy to GitHub Pages (root-level)" >nul
 
 echo [4/4] GitHub 원격 저장소에 gh-pages 브랜치 강제 푸시...
 echo 원격 origin 주소를 매핑하고 강제 업로드합니다.
-git remote add origin https://github.com/armour-seo/ScoreQuery.git
+git remote add origin https://github.com/chgseo3820/ScoreQuery.git
 git push -f origin gh-pages
 
 cd ..
@@ -50,5 +50,5 @@ echo     • 변경: gh-pages (폴더: / (root))
 echo  4. Save 버튼을 클릭하여 저장합니다.
 echo.
 echo  설정이 완료되면 주소에서 /docs/가 완전히 사라진 아래 주소로 즉시 서비스됩니다:
-echo  👉 https://armour-seo.github.io/ScoreQuery/
+echo  👉 https://chgseo3820.github.io/ScoreQuery/
 echo ========================================================

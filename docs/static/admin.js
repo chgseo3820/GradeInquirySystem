@@ -1396,7 +1396,8 @@
         if (!dataObj) return { success: false, error: 'No data' };
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/save_data', {
+            const serverOrigin = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? window.location.origin : 'http://127.0.0.1:5000';
+            const response = await fetch(`${serverOrigin}/api/save_data`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2825,7 +2826,8 @@
 
     async function autoSavePublicConfigToServer(gasUrl) {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/save_public_config', {
+            const serverOrigin = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? window.location.origin : 'http://127.0.0.1:5000';
+            const response = await fetch(`${serverOrigin}/api/save_public_config`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

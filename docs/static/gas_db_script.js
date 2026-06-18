@@ -198,6 +198,7 @@ function handleRegister(sheet, user) {
         "",  // withdrawReqDate
         ""   // withdrawApproveDate
       ]]);
+      notifyMasterOfRegistration(user);
       return { email: user.email, status: "pending" };
     }
     throw new Error("이미 등록되었거나 승인 대기 중인 이메일입니다.");
@@ -218,7 +219,32 @@ function handleRegister(sheet, user) {
     "",
     ""
   ]);
+  notifyMasterOfRegistration(user);
   return { email: user.email, status: "pending" };
+}
+
+// 마스터 계정으로 가입 신청 메일 전송
+function notifyMasterOfRegistration(newUser) {
+  try {
+    var masterEmail = "armour@tu.ac.kr"; 
+    var subject = "[ScoreQuery] 신규 교수 회원가입 신청 알림";
+    var body = "마스터 교수님 안녕하십니까,\n\n" +
+               "성적 조회 및 관리 시스템(ScoreQuery)에 신규 교수 가입 신청이 접수되었습니다.\n\n" +
+               "■ 신청자 정보\n" +
+               "- 이름: " + newUser.name + "\n" +
+               "- 이메일: " + newUser.email + "\n" +
+               "- 소속 대학: " + (newUser.univ || "미입력") + "\n" +
+               "- 소속 학과: " + (newUser.dept || "미입력") + "\n" +
+               "- 연락처: " + newUser.phone + "\n" +
+               "- 신청 일시: " + new Date().toLocaleString() + "\n\n" +
+               "관리자 대시보드에 로그인하여 가입 승인 여부를 검토해 주시기 바랍니다.\n" +
+               "- 관리자 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+               "감사합니다.";
+               
+    MailApp.sendEmail(masterEmail, subject, body);
+  } catch (err) {
+    Logger.log("마스터 알림 메일 발송 실패: " + err.message);
+  }
 }
 
 // 로그인 및 최신 가입 정보 조회

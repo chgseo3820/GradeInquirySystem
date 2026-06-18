@@ -8,7 +8,7 @@ import math
 import re
 import os
 import json
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory, redirect
 import openpyxl
 
 from scorequery_crypto import (
@@ -324,6 +324,22 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/docs/<path:filename>")
+def serve_docs(filename):
+    return send_from_directory("docs", filename)
+
+
+@app.route("/docs/")
+@app.route("/docs")
+def serve_docs_index():
+    return send_from_directory("docs", "index.html")
+
+
+@app.route("/admin")
+def admin_redirect():
+    return redirect("/docs/")
+
+
 @app.route("/api/score", methods=["POST"])
 def get_score():
     """
@@ -412,5 +428,9 @@ def get_score():
 # Entry Point
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
-    load_excel()
+    try:
+        load_excel()
+    except Exception as e:
+        print(f"[Warning] Excel file load failed: {e}")
+        print("Starting server without pre-loaded Excel data.")
     app.run(host="0.0.0.0", port=5000, debug=False)
