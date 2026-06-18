@@ -3233,7 +3233,7 @@
         const deletedCountEl = document.getElementById('deleted-count-badge');
 
         const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
-        const applicants = users.filter(u => !u.isMaster);
+        const applicants = users;
 
         // 1. 가입신청 목록 (status === 'pending' || status === 'rejected')
         const pendingUsers = applicants.filter(u => u.status === 'pending' || u.status === 'rejected');
@@ -3259,6 +3259,7 @@
                     
                     let statusBadge = `<span class="status-badge pending">대기</span>`;
                     if (user.status === 'rejected') statusBadge = `<span class="status-badge rejected">반려됨</span>`;
+                    const masterBadge = user.isMaster ? `<span style="background:var(--primary);color:white;padding:3px 6px;border-radius:4px;font-size:10px;margin-left:6px;vertical-align:middle;">마스터</span>` : '';
 
                     const actionHtml = `
                         <div class="master-actions">
@@ -3270,7 +3271,7 @@
 
                     tr.innerHTML = `
                         <td style="padding:12px; text-align:center; color:var(--text-secondary);">${idx + 1}</td>
-                        <td style="padding:12px;">${user.name}</td>
+                        <td style="padding:12px;">${user.name}${masterBadge}</td>
                         <td style="padding:12px;">${user.univ || '-'}</td>
                         <td style="padding:12px;">${user.dept}</td>
                         <td style="padding:12px;">${user.email}</td>
@@ -3295,6 +3296,7 @@
                     tr.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
 
                     const statusBadge = `<span class="status-badge approved">승인됨</span>`;
+                    const masterBadge = user.isMaster ? `<span style="background:var(--primary);color:white;padding:3px 6px;border-radius:4px;font-size:10px;margin-left:6px;vertical-align:middle;">마스터</span>` : '';
                     const actionHtml = `
                         <div class="master-actions">
                             <button class="btn-reset-pw" data-email="${user.email}">비밀번호 리셋</button>
@@ -3305,7 +3307,7 @@
 
                     tr.innerHTML = `
                         <td style="padding:12px; text-align:center; color:var(--text-secondary);">${idx + 1}</td>
-                        <td style="padding:12px;">${user.name}</td>
+                        <td style="padding:12px;">${user.name}${masterBadge}</td>
                         <td style="padding:12px;">${user.univ || '-'}</td>
                         <td style="padding:12px;">${user.dept}</td>
                         <td style="padding:12px;">${user.email}</td>
