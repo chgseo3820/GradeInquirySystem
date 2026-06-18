@@ -313,12 +313,16 @@ function handleWithdrawRequest(sheet, auth) {
     throw new Error("해당 계정을 찾을 수 없습니다.");
   }
 
-  // 상태를 'withdraw_pending'으로 변경
-  sheet.getRange(rowIndex, 7).setValue("withdraw_pending");
+  // 상태를 즉시 'deleted'로 변경 (승인 프로세스 생략)
+  sheet.getRange(rowIndex, 7).setValue("deleted");
+  
+  var now = new Date().toISOString();
   // 11번째 열: withdrawReqDate 기록
-  sheet.getRange(rowIndex, 11).setValue(new Date().toISOString());
+  sheet.getRange(rowIndex, 11).setValue(now);
+  // 12번째 열: withdrawApproveDate 도 동일하게 기록
+  sheet.getRange(rowIndex, 12).setValue(now);
 
-  return { email: auth.email, status: "withdraw_pending" };
+  return { email: auth.email, status: "deleted" };
 }
 
 // 비밀번호 초기화 처리

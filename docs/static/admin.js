@@ -3255,8 +3255,8 @@
         const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
         const applicants = users;
 
-        // 1. 가입신청 목록 (status === 'pending' || status === 'rejected' || status === 'withdraw_pending')
-        const pendingUsers = applicants.filter(u => u.status === 'pending' || u.status === 'rejected' || u.status === 'withdraw_pending');
+        // 1. 가입신청 목록 (status === 'pending' || status === 'rejected')
+        const pendingUsers = applicants.filter(u => u.status === 'pending' || u.status === 'rejected');
         // 2. 등록회원 목록 (status === 'approved')
         const approvedUsers = applicants.filter(u => u.status === 'approved');
         // 3. 탈퇴 및 삭제회원 목록 (status === 'deleted')
@@ -3279,14 +3279,13 @@
                     
                     let statusBadge = `<span class="status-badge pending">대기</span>`;
                     if (user.status === 'rejected') statusBadge = `<span class="status-badge rejected">반려됨</span>`;
-                    if (user.status === 'withdraw_pending') statusBadge = `<span class="status-badge rejected">탈퇴 대기</span>`;
                     const masterBadge = user.isMaster ? `<span style="background:var(--primary);color:white;padding:3px 6px;border-radius:4px;font-size:10px;margin-left:6px;vertical-align:middle;">마스터</span>` : '';
 
                     const actionHtml = `
                         <div class="master-actions">
-                            ${user.status === 'withdraw_pending' ? `<button class="btn-delete-user" data-email="${user.email}" style="background:var(--danger); border:none; color:white; padding:6px 12px; border-radius:var(--radius-sm); font-size:12px; cursor:pointer;">탈퇴 승인</button>` : `<button class="btn-approve" data-email="${user.email}">승인</button>`}
+                            <button class="btn-approve" data-email="${user.email}">승인</button>
                             ${user.status === 'pending' ? `<button class="btn-reject" data-email="${user.email}">반려</button>` : ''}
-                            ${user.status !== 'withdraw_pending' ? `<button class="btn-delete-user" data-email="${user.email}">삭제</button>` : ''}
+                            <button class="btn-delete-user" data-email="${user.email}">삭제</button>
                         </div>
                     `;
 
@@ -3297,7 +3296,7 @@
                         <td style="padding:12px;">${user.dept}</td>
                         <td style="padding:12px;">${user.email}</td>
                         <td style="padding:12px;">${user.phone}</td>
-                        <td style="padding:12px;">${user.status === 'withdraw_pending' && user.withdrawReqDate ? new Date(user.withdrawReqDate).toLocaleDateString() : new Date(user.regDate).toLocaleDateString()}</td>
+                        <td style="padding:12px;">${new Date(user.regDate).toLocaleDateString()}</td>
                         <td style="padding:12px; text-align:center;">${statusBadge}</td>
                         <td style="padding:12px; text-align:center;">${actionHtml}</td>
                     `;
@@ -3360,8 +3359,7 @@
                         </div>
                     `;
 
-                    const withdrawReqStr = user.withdrawReqDate ? new Date(user.withdrawReqDate).toLocaleDateString() : '-';
-                    const withdrawApproveStr = user.withdrawApproveDate ? new Date(user.withdrawApproveDate).toLocaleDateString() : (user.deletedDate ? new Date(user.deletedDate).toLocaleDateString() : '-');
+                    const deletedDateStr = user.withdrawReqDate ? new Date(user.withdrawReqDate).toLocaleDateString() : (user.deletedDate ? new Date(user.deletedDate).toLocaleDateString() : '-');
 
                     tr.innerHTML = `
                         <td style="padding:12px; text-align:center; color:var(--text-secondary);">${idx + 1}</td>
@@ -3370,8 +3368,7 @@
                         <td style="padding:12px;">${user.dept}</td>
                         <td style="padding:12px;">${user.email}</td>
                         <td style="padding:12px;">${user.phone}</td>
-                        <td style="padding:12px;">${withdrawReqStr}</td>
-                        <td style="padding:12px;">${withdrawApproveStr}</td>
+                        <td style="padding:12px;">${deletedDateStr}</td>
                         <td style="padding:12px; text-align:center;">${statusBadge}</td>
                         <td style="padding:12px; text-align:center;">${actionHtml}</td>
                     `;
