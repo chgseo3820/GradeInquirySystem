@@ -272,12 +272,14 @@
         }
     }
 
-    // ── 교수 개인정보 수정 모달 ──
-    function showProfessorInfoMgmtModal(initialTab = 'info') {
-        const infoOnly = initialTab === 'info';
-        const modalId = 'professor-info-mgmt-modal';
-        const existing = document.getElementById(modalId);
-        if (existing) existing.remove();
+    // ── 교수 개인정보 및 설정 드로어 ──
+    function showProfessorInfoMgmtDrawer(initialTab = 'info') {
+        const backdropId = 'professor-info-mgmt-drawer-backdrop';
+        const drawerId = 'professor-info-mgmt-drawer';
+        const existingBackdrop = document.getElementById(backdropId);
+        const existingDrawer = document.getElementById(drawerId);
+        if (existingBackdrop) existingBackdrop.remove();
+        if (existingDrawer) existingDrawer.remove();
 
         if (!currentUser) {
             alert('⚠️ 현재 로그인 세션 정보가 없습니다. 다시 로그인해 주세요.');
@@ -285,255 +287,317 @@
             return;
         }
 
-        const modalHtml = `
-            <div id="${modalId}" style="
-                position: fixed;
-                top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(15, 23, 42, 0.75);
-                backdrop-filter: blur(8px);
-                display: flex; align-items: center; justify-content: center;
-                z-index: 99999;
-                font-family: inherit;
-            ">
-                <div style="
-                    background: rgba(30, 41, 59, 0.95);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 16px;
-                    width: 95%;
-                    max-width: 460px;
-                    padding: 24px;
-                    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
-                    color: #f8fafc;
-                    box-sizing: border-box;
-                ">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
-                        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #f59e0b;">👤 개인정보 수정</h3>
-                        <button id="close-mgmt-modal-btn" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer; padding: 0 4px; line-height: 1;">&times;</button>
+        const isMaster = currentUser.isMaster === true || currentUser.isMaster === 'true';
+
+        // 1. 백드롭 & 드로어 HTML 구조 정의
+        const backdropHtml = `<div id="${backdropId}" class="slide-drawer-backdrop"></div>`;
+        
+        // 마스터인 경우 회원관리 탭 포함, 아닌 경우 비노출
+        const masterTabHeader = isMaster ? `
+            <button id="drawer-tab-btn-master" class="drawer-tab-btn" data-tab="master">
+                <span class="tab-icon">🛡️</span>
+                <span class="tab-text">회원 관리</span>
+            </button>
+        ` : '';
+
+        const drawerHtml = `
+            <div id="${drawerId}" class="slide-drawer">
+                <div class="drawer-header">
+                    <h3>👤 개인정보 및 설정</h3>
+                    <button id="btn-close-drawer" class="btn-close-drawer">&times;</button>
+                </div>
+                <div class="drawer-body">
+                    <!-- 좌측 사이드바 내비게이션 -->
+                    <div class="drawer-sidebar">
+                        ${!isMaster ? `
+                        <button id="drawer-tab-btn-info" class="drawer-tab-btn" data-tab="info">
+                            <span class="tab-icon">👤</span>
+                            <span class="tab-text">프로필 설정</span>
+                        </button>
+                        ` : ''}
+                        <button id="drawer-tab-btn-pw" class="drawer-tab-btn" data-tab="pw">
+                            <span class="tab-icon">🔑</span>
+                            <span class="tab-text">계정 및 보안</span>
+                        </button>
+                        <button id="drawer-tab-btn-config" class="drawer-tab-btn" data-tab="config">
+                            <span class="tab-icon">⚙️</span>
+                            <span class="tab-text">데이터베이스</span>
+                        </button>
+                        ${masterTabHeader}
+                        ${!isMaster ? `
+                        <button id="drawer-tab-btn-delete" class="drawer-tab-btn" data-tab="delete">
+                            <span class="tab-icon">🗑️</span>
+                            <span class="tab-text">회원 탈퇴</span>
+                        </button>
+                        ` : ''}
                     </div>
 
-                    <!-- Tab Headers -->
-                    <div id="mgmt-tab-header" style="display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
-                        <button id="tab-btn-info" style="flex: 1; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid transparent; border-radius: 6px; background: none; color: #94a3b8; cursor: pointer; transition: all 0.2s;">👤 정보수정</button>
-                        <button id="tab-btn-pw" style="flex: 1; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid transparent; border-radius: 6px; background: none; color: #94a3b8; cursor: pointer; transition: all 0.2s;">🔑 비밀번호</button>
-                        <button id="tab-btn-delete" style="flex: 1; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid transparent; border-radius: 6px; background: none; color: #94a3b8; cursor: pointer; transition: all 0.2s;">🗑️ 회원탈퇴</button>
-                    </div>
+                    <!-- 우측 메인 콘텐츠 영역 -->
+                    <div class="drawer-content-area">
+                        <!-- 1. 프로필 설정 패널 -->
+                        ${!isMaster ? `
+                        <div id="drawer-pane-info" class="drawer-tab-pane">
+                            <div class="drawer-form-group">
+                                <label>이름</label>
+                                <input type="text" id="drawer-prof-name" class="drawer-input" placeholder="홍길동">
+                            </div>
+                            <div class="drawer-form-group">
+                                <label>이메일 (아이디)</label>
+                                <input type="email" id="drawer-prof-email" class="drawer-input" readonly>
+                            </div>
+                            <div class="drawer-form-group">
+                                <label>전화번호</label>
+                                <input type="tel" id="drawer-prof-phone" class="drawer-input" placeholder="010-1234-5678">
+                            </div>
+                            <div id="drawer-info-error" class="drawer-error-msg" style="display: none;"></div>
+                            <button id="drawer-save-info-btn" class="drawer-btn-primary">프로필 정보 저장</button>
+                        </div>
+                        ` : ''}
 
-                    <!-- Tab Contents -->
-                    <!-- 1. 정보수정 -->
-                    <div id="tab-content-info" class="tab-pane" style="display: none;">
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">이름</label>
-                            <input type="text" id="mgmt-prof-name" placeholder="홍길동" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 13px; outline: none;">
+                        <!-- 2. 계정 및 보안 패널 -->
+                        <div id="drawer-pane-pw" class="drawer-tab-pane">
+                            <div class="drawer-form-group">
+                                <label>현재 비밀번호</label>
+                                <input type="password" id="drawer-pw-current" class="drawer-input" placeholder="현재 비밀번호 입력">
+                            </div>
+                            <div class="drawer-form-group">
+                                <label>새 비밀번호</label>
+                                <input type="password" id="drawer-pw-new" class="drawer-input" placeholder="대소문자/숫자/특수문자 포함 8자 이상">
+                            </div>
+                            <div class="drawer-form-group">
+                                <label>새 비밀번호 확인</label>
+                                <input type="password" id="drawer-pw-confirm" class="drawer-input" placeholder="새 비밀번호 재확인 입력">
+                            </div>
+                            <div id="drawer-pw-error" class="drawer-error-msg" style="display: none;"></div>
+                            <button id="drawer-save-pw-btn" class="drawer-btn-primary" style="margin-bottom: 24px;">비밀번호 변경</button>
+                            
+                            <!-- 세션 정보 제공 -->
+                            <div style="padding: 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 8px;">
+                                <div style="font-size: 11px; font-weight: 700; color: #38bdf8; margin-bottom: 8px; text-transform: uppercase;">ℹ️ 현재 세션 보안 정보</div>
+                                <div style="font-size: 11px; color: #94a3b8; line-height: 1.5;">
+                                    • 접속 계정: ${currentUser.email}<br>
+                                    • 권한 등급: ${isMaster ? '마스터 관리자 (Master)' : '교수자 (Professor)'}<br>
+                                    • 접속 환경: ${navigator.userAgent.indexOf('Chrome') >= 0 ? 'Chrome / Webkit 기반' : '웹 브라우저'}<br>
+                                    • 자동 로그아웃: 세션 종료 시까지 유지
+                                </div>
+                            </div>
                         </div>
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">이메일 (아이디)</label>
-                            <input type="email" id="mgmt-prof-email" readonly style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); background: rgba(15,23,42,0.3); color: #94a3b8; font-size: 13px; outline: none; cursor: not-allowed;">
-                        </div>
-                        <div style="margin-bottom: 20px;">
-                            <label style="display: block; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">전화번호</label>
-                            <input type="tel" id="mgmt-prof-phone" placeholder="010-1234-5678" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 13px; outline: none;">
-                        </div>
-                        <div id="mgmt-info-error" style="display: none; color: #f87171; font-size: 12px; margin-bottom: 16px; line-height: 1.4;"></div>
-                        <button id="save-info-btn" style="width: 100%; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 10px; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">개인정보 저장</button>
-                    </div>
 
-                    <!-- 2. 비밀번호 변경 -->
-                    <div id="tab-content-pw" class="tab-pane" style="display: none;">
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">현재 비밀번호</label>
-                            <input type="password" id="mgmt-pw-current" placeholder="현재 비밀번호 입력" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 13px; outline: none;">
+                        <!-- 3. 데이터베이스 연동 설정 패널 -->
+                        <div id="drawer-pane-config" class="drawer-tab-pane">
+                            <div class="drawer-form-group">
+                                <label>구글 앱스 스크립트(GAS) Web App URL</label>
+                                <input type="text" id="drawer-gas-url" class="drawer-input" placeholder="https://script.google.com/macros/s/.../exec">
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 20px;">
+                                <button id="drawer-test-gas-btn" class="drawer-btn-secondary" style="flex: 1;">⚡ 연동 테스트</button>
+                                <span id="drawer-gas-test-badge" style="display: none;"></span>
+                            </div>
+                            <button id="drawer-save-gas-btn" class="drawer-btn-primary">데이터베이스 설정 저장</button>
                         </div>
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">새 비밀번호</label>
-                            <input type="password" id="mgmt-pw-new" placeholder="대소문자/숫자/특수문자 포함 8자 이상" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 13px; outline: none;">
-                        </div>
-                        <div style="margin-bottom: 20px;">
-                            <label style="display: block; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">새 비밀번호 확인</label>
-                            <input type="password" id="mgmt-pw-confirm" placeholder="새 비밀번호 재확인 입력" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 13px; outline: none;">
-                        </div>
-                        <div id="mgmt-pw-error" style="display: none; color: #f87171; font-size: 12px; margin-bottom: 16px; line-height: 1.4;"></div>
-                        <button id="save-pw-btn" style="width: 100%; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 10px; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">비밀번호 변경 저장</button>
-                    </div>
 
-                    <!-- 3. 회원탈퇴 -->
-                    <div id="tab-content-delete" class="tab-pane" style="display: none;">
-                        <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
-                            <h4 style="margin: 0 0 8px 0; color: #fca5a5; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">⚠️ 회원 탈퇴 주의사항</h4>
-                            <ul style="margin: 0; padding-left: 18px; font-size: 0.75rem; color: #fca5a5; line-height: 1.5; display: flex; flex-direction: column; gap: 4px;">
-                                <li>회원 탈퇴 처리 시 즉시 로그아웃되며 계정이 비활성화 상태가 됩니다.</li>
-                                <li>탈퇴 정보는 시스템 이력에 안전하게 마킹(Soft Delete) 보존됩니다.</li>
-                                <li>마스터 계정 관리자의 승인 및 복구 전까지는 동일 이메일로 가입 및 로그인이 불가합니다.</li>
-                            </ul>
+                        <!-- 4. 마스터 회원 관리 패널 (마스터 권한 시에만 렌더링) -->
+                        ${isMaster ? `
+                        <div id="drawer-pane-master" class="drawer-tab-pane">
+                            <div class="drawer-user-section-title" style="color: #fbbf24;">
+                                <span>📋 가입 신청 대기</span>
+                                <span id="drawer-badge-pending" class="ping-status-badge loading" style="margin-left: 4px; padding: 1px 6px;">0</span>
+                            </div>
+                            <div id="drawer-pending-users-list" class="drawer-user-list"></div>
+
+                            <div class="drawer-user-section-title" style="color: #34d399;">
+                                <span>👥 승인 완료 회원</span>
+                                <span id="drawer-badge-approved" class="ping-status-badge success" style="margin-left: 4px; padding: 1px 6px;">0</span>
+                            </div>
+                            <div id="drawer-approved-users-list" class="drawer-user-list"></div>
+
+                            <div class="drawer-user-section-title" style="color: #94a3b8;">
+                                <span>🗑️ 비활성/탈퇴 회원</span>
+                            </div>
+                            <div id="drawer-deleted-users-list" class="drawer-user-list"></div>
                         </div>
-                        
-                        <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 20px;">
-                            <input type="checkbox" id="agree-delete-chk" style="margin-top: 2px; cursor: pointer;">
-                            <label for="agree-delete-chk" style="font-size: 0.8rem; color: #e2e8f0; cursor: pointer; user-select: none; line-height: 1.4;">위 주의사항을 명확히 확인하였으며, 이에 동의합니다.</label>
+                        ` : ''}
+
+                        <!-- 5. 회원 탈퇴 패널 -->
+                        ${!isMaster ? `
+                        <div id="drawer-pane-delete" class="drawer-tab-pane">
+                            <div class="drawer-warn-box">
+                                <strong>⚠️ 회원 탈퇴 주의사항</strong><br>
+                                • 탈퇴 완료 시 즉시 로그아웃되며 계정이 비활성화 상태가 됩니다.<br>
+                                • 탈퇴 정보는 복구를 대비하여 안전하게 보존(Soft Delete)됩니다.<br>
+                                • 마스터 계정 관리자가 재승인/복구 처리하기 전까지 동일 이메일로 재가입 및 로그인이 불가합니다.<br>
+                                • <strong>탈퇴 확정 시 본 계정이 생성한 모든 성적 파일은 더 이상 조회할 수 없게 되니 각별히 유의바랍니다.</strong>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 20px;">
+                                <input type="checkbox" id="drawer-agree-delete" style="margin-top: 3px; cursor: pointer;">
+                                <label for="drawer-agree-delete" style="font-size: 12px; color: #cbd5e1; cursor: pointer; user-select: none; line-height: 1.4;">
+                                    위 주의사항을 완전히 이해했으며, 이에 동의합니다.
+                                </label>
+                            </div>
+                            <button id="drawer-execute-delete-btn" disabled class="drawer-btn-primary" style="background: #ef4444; cursor: not-allowed; opacity: 0.5; box-shadow: none;">
+                                🗑️ 회원 탈퇴 실행
+                            </button>
                         </div>
-                        
-                        <button id="execute-delete-btn" disabled style="
-                            width: 100%;
-                            background: #ef4444;
-                            color: white;
-                            border: none;
-                            padding: 10px;
-                            border-radius: 6px;
-                            font-size: 0.875rem;
-                            font-weight: 600;
-                            cursor: not-allowed;
-                            opacity: 0.5;
-                            transition: all 0.2s;
-                        ">🗑️ 회원 탈퇴 실행</button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
         `;
 
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        document.body.insertAdjacentHTML('beforeend', backdropHtml + drawerHtml);
 
-        const modal = document.getElementById(modalId);
-        const closeBtn = document.getElementById('close-mgmt-modal-btn');
-        const tabHeader = document.getElementById('mgmt-tab-header');
-        const tabBtnInfo = document.getElementById('tab-btn-info');
-        const tabBtnPw = document.getElementById('tab-btn-pw');
-        const tabBtnDelete = document.getElementById('tab-btn-delete');
-        
-        const tabContentInfo = document.getElementById('tab-content-info');
-        const tabContentPw = document.getElementById('tab-content-pw');
-        const tabContentDelete = document.getElementById('tab-content-delete');
+        const backdrop = document.getElementById(backdropId);
+        const drawer = document.getElementById(drawerId);
+        const closeBtn = document.getElementById('btn-close-drawer');
 
-        // 프리필드
-        document.getElementById('mgmt-prof-name').value = currentUser.name || '';
-        document.getElementById('mgmt-prof-email').value = currentUser.email || '';
-        document.getElementById('mgmt-prof-phone').value = currentUser.phone || '';
+        // 슬라이드 모션 활성화
+        setTimeout(() => {
+            backdrop.classList.add('active');
+            drawer.classList.add('active');
+        }, 10);
 
-        // 마스터 계정의 경우 비밀번호 변경만 허용
-        if (currentUser.isMaster) {
-            tabBtnInfo.style.display = 'none';
-            tabBtnDelete.style.display = 'none';
-            initialTab = 'pw';
-        } else if (infoOnly) {
-            tabHeader.style.display = 'none';
-            tabContentPw.remove();
-            tabContentDelete.remove();
+        // 드로어 닫기 함수
+        function closeDrawer() {
+            backdrop.classList.remove('active');
+            drawer.classList.remove('active');
+            setTimeout(() => {
+                const b = document.getElementById(backdropId);
+                const d = document.getElementById(drawerId);
+                if (b) b.remove();
+                if (d) d.remove();
+            }, 300);
         }
 
-        // 닫기
-        closeBtn.onclick = () => modal.remove();
+        closeBtn.onclick = closeDrawer;
+        backdrop.onclick = closeDrawer;
 
-        // 탭 전환 함수
+        // 탭 버튼 및 패널 요소 수집
+        const tabBtns = drawer.querySelectorAll('.drawer-tab-btn');
+        const tabPanes = drawer.querySelectorAll('.drawer-tab-pane');
+
         function switchTab(tabName) {
-            // 버튼 상태 초기화
-            [tabBtnInfo, tabBtnPw, tabBtnDelete].forEach(btn => {
-                btn.style.background = 'none';
-                btn.style.color = '#94a3b8';
-                btn.style.borderColor = 'transparent';
-            });
-            // 본문 상태 초기화
-            [tabContentInfo, tabContentPw, tabContentDelete].forEach(pane => {
-                if (pane) pane.style.display = 'none';
+            tabBtns.forEach(btn => {
+                if (btn.getAttribute('data-tab') === tabName) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             });
 
-            if (tabName === 'info') {
-                tabBtnInfo.style.background = 'rgba(59, 130, 246, 0.15)';
-                tabBtnInfo.style.borderColor = 'rgba(59, 130, 246, 0.4)';
-                tabBtnInfo.style.color = '#60a5fa';
-                tabContentInfo.style.display = 'block';
-            } else if (tabName === 'pw' && tabContentPw) {
-                tabBtnPw.style.background = 'rgba(245, 158, 11, 0.15)';
-                tabBtnPw.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-                tabBtnPw.style.color = '#fbbf24';
-                tabContentPw.style.display = 'block';
-            } else if (tabName === 'delete' && tabContentDelete) {
-                tabBtnDelete.style.background = 'rgba(239, 68, 68, 0.15)';
-                tabBtnDelete.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-                tabBtnDelete.style.color = '#fca5a5';
-                tabContentDelete.style.display = 'block';
+            tabPanes.forEach(pane => {
+                if (pane.id === `drawer-pane-${tabName}`) {
+                    pane.classList.add('active');
+                } else {
+                    pane.classList.remove('active');
+                }
+            });
+
+            // 마스터 탭 선택 시 세로형 카드 목록 렌더링 호출
+            if (tabName === 'master' && isMaster) {
+                renderDrawerMasterUsers();
             }
         }
 
-        // 초기 탭 설정
-        switchTab(initialTab);
+        // 초기 기본 탭 설정
+        let defaultTab = initialTab;
+        if (isMaster && (initialTab === 'info' || initialTab === 'delete')) {
+            defaultTab = 'pw'; // 마스터는 프로필/탈퇴 메뉴가 없으므로 비밀번호 탭을 기본으로
+        }
+        switchTab(defaultTab);
 
-        tabBtnInfo.onclick = infoOnly ? null : () => switchTab('info');
-        tabBtnPw.onclick = infoOnly ? null : () => switchTab('pw');
-        tabBtnDelete.onclick = infoOnly ? null : () => switchTab('delete');
+        // 탭 버튼 이벤트 연결
+        tabBtns.forEach(btn => {
+            btn.onclick = () => {
+                const tab = btn.getAttribute('data-tab');
+                switchTab(tab);
+            };
+        });
 
-        // ── 1. 정보 수정 비즈니스 로직 ──
-        const saveInfoBtn = document.getElementById('save-info-btn');
-        const infoErr = document.getElementById('mgmt-info-error');
-        saveInfoBtn.onclick = async () => {
-            infoErr.style.display = 'none';
-            const nameVal = document.getElementById('mgmt-prof-name').value.trim();
-            const phoneVal = document.getElementById('mgmt-prof-phone').value.trim();
+        // ── 1. 프로필 수정 기능 바인딩 ──
+        if (!isMaster) {
+            const profNameInput = document.getElementById('drawer-prof-name');
+            const profEmailInput = document.getElementById('drawer-prof-email');
+            const profPhoneInput = document.getElementById('drawer-prof-phone');
+            const saveInfoBtn = document.getElementById('drawer-save-info-btn');
+            const infoError = document.getElementById('drawer-info-error');
 
-            if (!nameVal || !phoneVal) {
-                infoErr.textContent = '❌ 모든 항목을 입력해 주세요.';
-                infoErr.style.display = 'block';
-                return;
-            }
+            profNameInput.value = currentUser.name || '';
+            profEmailInput.value = currentUser.email || '';
+            profPhoneInput.value = currentUser.phone || '';
 
-            const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
-            const idx = users.findIndex(u => u.email === currentUser.email);
-            if (idx >= 0) {
-                users[idx].name = nameVal;
-                users[idx].phone = phoneVal;
-                localStorage.setItem('scorequery_users', JSON.stringify(users));
+            saveInfoBtn.onclick = async () => {
+                infoError.style.display = 'none';
+                const nameVal = profNameInput.value.trim();
+                const phoneVal = profPhoneInput.value.trim();
 
-                // 세션 및 현재 데이터 갱신
-                currentUser.name = nameVal;
-                currentUser.phone = phoneVal;
-                sessionStorage.setItem('scorequery_session', JSON.stringify(currentUser));
+                if (!nameVal || !phoneVal) {
+                    infoError.textContent = '❌ 모든 항목을 입력해 주세요.';
+                    infoError.style.display = 'block';
+                    return;
+                }
 
-                // 마법사 1단계 교수자 입력폼에도 즉시 동기화
-                const profNameField = document.getElementById('prof-name');
-                const profPhoneField = document.getElementById('prof-phone');
-                if (profNameField) profNameField.value = nameVal;
-                if (profPhoneField) profPhoneField.value = phoneVal;
-                adminConfig.professor = { name: nameVal, email: currentUser.email, phone: phoneVal };
+                const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+                const idx = users.findIndex(u => u.email === currentUser.email);
+                if (idx >= 0) {
+                    users[idx].name = nameVal;
+                    users[idx].phone = phoneVal;
+                    localStorage.setItem('scorequery_users', JSON.stringify(users));
 
-                alert('👤 교수자 정보가 성공적으로 수정되었습니다.');
-                modal.remove();
-            } else {
-                alert('⚠️ 정보 수정 중 오류가 발생했습니다. 다시 로그인해 주세요.');
-                handleLogoutAction();
-            }
-        };
+                    currentUser.name = nameVal;
+                    currentUser.phone = phoneVal;
+                    sessionStorage.setItem('scorequery_session', JSON.stringify(currentUser));
 
-        // ── 2. 비밀번호 변경 비즈니스 로직 ──
-        const savePwBtn = document.getElementById('save-pw-btn');
-        const pwErr = document.getElementById('mgmt-pw-error');
-        if (savePwBtn) savePwBtn.onclick = async () => {
-            pwErr.style.display = 'none';
-            const currentVal = document.getElementById('mgmt-pw-current').value;
-            const newVal = document.getElementById('mgmt-pw-new').value;
-            const confirmVal = document.getElementById('mgmt-pw-confirm').value;
+                    const mainProfName = document.getElementById('prof-name');
+                    const mainProfPhone = document.getElementById('prof-phone');
+                    if (mainProfName) mainProfName.value = nameVal;
+                    if (mainProfPhone) mainProfPhone.value = phoneVal;
+                    adminConfig.professor = { name: nameVal, email: currentUser.email, phone: phoneVal };
+
+                    alert('👤 교수자 프로필 정보가 수정되었습니다.');
+                    closeDrawer();
+                } else {
+                    alert('⚠️ 사용자 조회 오류가 발생했습니다. 다시 로그인해 주세요.');
+                    handleLogoutAction();
+                }
+            };
+        }
+
+        // ── 2. 비밀번호 변경 기능 바인딩 ──
+        const pwCurrent = document.getElementById('drawer-pw-current');
+        const pwNew = document.getElementById('drawer-pw-new');
+        const pwConfirm = document.getElementById('drawer-pw-confirm');
+        const savePwBtn = document.getElementById('drawer-save-pw-btn');
+        const pwError = document.getElementById('drawer-pw-error');
+
+        savePwBtn.onclick = async () => {
+            pwError.style.display = 'none';
+            const currentVal = pwCurrent.value;
+            const newVal = pwNew.value;
+            const confirmVal = pwConfirm.value;
 
             if (!currentVal || !newVal || !confirmVal) {
-                pwErr.textContent = '❌ 모든 항목을 입력해 주세요.';
-                pwErr.style.display = 'block';
+                pwError.textContent = '❌ 모든 항목을 입력해 주세요.';
+                pwError.style.display = 'block';
                 return;
             }
 
-            // 현재 비밀번호 검증
             const currentHashed = await sha256(currentVal);
             if (currentUser.pw !== currentHashed) {
-                pwErr.textContent = '❌ 현재 비밀번호가 일치하지 않습니다.';
-                pwErr.style.display = 'block';
+                pwError.textContent = '❌ 현재 비밀번호가 일치하지 않습니다.';
+                pwError.style.display = 'block';
                 return;
             }
 
-            // 새 비밀번호 조건 검증 (대소문자, 숫자, 특수문자 8자 이상)
             const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
             if (!pwRegex.test(newVal)) {
-                pwErr.textContent = '❌ 새 비밀번호는 영문 대소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함하여 8자 이상이어야 합니다.';
-                pwErr.style.display = 'block';
+                pwError.textContent = '❌ 새 비밀번호는 영문 대소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함하여 8자 이상으로 설정해 주세요.';
+                pwError.style.display = 'block';
                 return;
             }
 
             if (newVal !== confirmVal) {
-                pwErr.textContent = '❌ 새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다.';
-                pwErr.style.display = 'block';
+                pwError.textContent = '❌ 새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다.';
+                pwError.style.display = 'block';
                 return;
             }
 
@@ -541,14 +605,16 @@
             const gasUrl = localStorage.getItem('scorequery_gas_url');
             if (gasUrl) {
                 try {
-                    // GAS 데이터베이스에 원격 비밀번호 변경 요청
+                    showMailLoading(true);
                     await callGasApi('change_pw', { newPwHash: newHashed }, {
                         email: currentUser.email,
                         pwHash: currentUser.pw
                     });
+                    showMailLoading(false);
                 } catch (err) {
-                    pwErr.textContent = '❌ 원격 비밀번호 변경에 실패했습니다: ' + (err.message || '네트워크 오류');
-                    pwErr.style.display = 'block';
+                    showMailLoading(false);
+                    pwError.textContent = '❌ 원격 비밀번호 변경에 실패했습니다: ' + (err.message || '네트워크 오류');
+                    pwError.style.display = 'block';
                     return;
                 }
             }
@@ -563,61 +629,239 @@
                 sessionStorage.setItem('scorequery_session', JSON.stringify(currentUser));
 
                 alert('🔑 비밀번호가 성공적으로 변경되었습니다.');
-                modal.remove();
+                closeDrawer();
             } else {
                 alert('⚠️ 비밀번호 변경 중 오류가 발생했습니다. 다시 로그인해 주세요.');
                 handleLogoutAction();
             }
         };
 
-        // ── 3. 회원 탈퇴 비즈니스 로직 ──
-        const agreeChk = document.getElementById('agree-delete-chk');
-        const execDeleteBtn = document.getElementById('execute-delete-btn');
+        // ── 3. 데이터베이스 연동 설정 바인딩 ──
+        const gasUrlInput = document.getElementById('drawer-gas-url');
+        const testGasBtn = document.getElementById('drawer-test-gas-btn');
+        const gasTestBadge = document.getElementById('drawer-gas-test-badge');
+        const saveGasBtn = document.getElementById('drawer-save-gas-btn');
 
-        if (agreeChk && execDeleteBtn) agreeChk.onchange = (e) => {
-            const isChecked = e.target.checked;
-            execDeleteBtn.disabled = !isChecked;
-            if (isChecked) {
-                execDeleteBtn.style.cursor = 'pointer';
-                execDeleteBtn.style.opacity = '1';
-            } else {
-                execDeleteBtn.style.cursor = 'not-allowed';
-                execDeleteBtn.style.opacity = '0.5';
-            }
-        };
+        gasUrlInput.value = localStorage.getItem('scorequery_gas_url') || '';
 
-        if (execDeleteBtn) execDeleteBtn.onclick = async () => {
-            if (currentUser.isMaster) {
-                alert('⚠️ 마스터 계정은 탈퇴할 수 없습니다.');
+        // 연동 테스트 기능
+        testGasBtn.onclick = async () => {
+            const testUrl = gasUrlInput.value.trim();
+            if (!testUrl) {
+                alert('⚠️ 테스트할 웹앱 URL을 입력해 주세요.');
                 return;
             }
 
-            if (!confirm('⚠️ 정말로 회원 탈퇴를 신청하시겠습니까?\n탈퇴 신청 시 즉시 계정이 비활성화되며, 마스터 승인 후 완전 삭제 처리됩니다.')) {
-                return;
-            }
+            const oldUrl = localStorage.getItem('scorequery_gas_url');
+            localStorage.setItem('scorequery_gas_url', testUrl);
+
+            gasTestBadge.className = 'ping-status-badge loading';
+            gasTestBadge.textContent = '⏳ 통신 중...';
+            gasTestBadge.style.display = 'inline-flex';
+            testGasBtn.disabled = true;
 
             try {
-                if (localStorage.getItem('scorequery_gas_url')) {
-                    await callGasApi('withdraw_request', null, {
-                        email: currentUser.email,
-                        pwHash: currentUser.pw
-                    });
+                // 로그인 정보를 활용해 GAS가 올바르게 반응하는지 테스트
+                const testRes = await callGasApi('login', { email: currentUser.email, pwHash: currentUser.pw });
+                if (testRes) {
+                    gasTestBadge.className = 'ping-status-badge success';
+                    gasTestBadge.textContent = '🟢 연결 성공';
                 } else {
-                    const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
-                    const idx = users.findIndex(u => u.email === currentUser.email);
-                    if (idx >= 0) {
-                        users[idx].status = 'withdraw_pending';
-                        users[idx].withdrawReqDate = new Date().toISOString();
-                        localStorage.setItem('scorequery_users', JSON.stringify(users));
-                    }
+                    throw new Error('올바르지 않은 응답');
                 }
-                alert('🗑️ 회원 탈퇴 신청이 완료되었습니다. 마스터 승인을 기다려주세요.\n로그인 화면으로 돌아갑니다.');
-                modal.remove();
-                handleLogoutAction();
             } catch (err) {
-                alert('탈퇴 신청 중 오류가 발생했습니다: ' + err.message);
+                console.error(err);
+                gasTestBadge.className = 'ping-status-badge fail';
+                gasTestBadge.textContent = '🔴 연결 실패';
+            } finally {
+                testGasBtn.disabled = false;
+                if (oldUrl) localStorage.setItem('scorequery_gas_url', oldUrl);
+                else localStorage.removeItem('scorequery_gas_url');
             }
         };
+
+        // 설정 저장 기능
+        saveGasBtn.onclick = async () => {
+            const saveUrl = gasUrlInput.value.trim();
+            localStorage.setItem('scorequery_gas_url', saveUrl);
+            await autoSavePublicConfigToServer(saveUrl);
+            
+            // 마스터 대시보드 뷰 주소 영역도 동기화
+            const mainGasInput = document.getElementById('gas-url-input');
+            if (mainGasInput) mainGasInput.value = saveUrl;
+
+            alert('⚙️ 구글 스프레드시트 데이터베이스 연동 주소가 저장되었습니다.');
+            closeDrawer();
+        };
+
+        // ── 4. 회원 탈퇴 바인딩 ──
+        if (!isMaster) {
+            const agreeChk = document.getElementById('drawer-agree-delete');
+            const execDeleteBtn = document.getElementById('drawer-execute-delete-btn');
+
+            agreeChk.onchange = (e) => {
+                const isChecked = e.target.checked;
+                execDeleteBtn.disabled = !isChecked;
+                if (isChecked) {
+                    execDeleteBtn.style.cursor = 'pointer';
+                    execDeleteBtn.style.opacity = '1';
+                    execDeleteBtn.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.2)';
+                } else {
+                    execDeleteBtn.style.cursor = 'not-allowed';
+                    execDeleteBtn.style.opacity = '0.5';
+                    execDeleteBtn.style.boxShadow = 'none';
+                }
+            };
+
+            execDeleteBtn.onclick = async () => {
+                const checkPw = prompt('🗑️ 회원 탈퇴 검증을 위해 비밀번호를 다시 한 번 입력해 주세요:');
+                if (!checkPw) return;
+
+                const checkHashed = await sha256(checkPw);
+                if (currentUser.pw !== checkHashed) {
+                    alert('❌ 비밀번호가 일치하지 않습니다. 탈퇴 처리가 취소되었습니다.');
+                    return;
+                }
+
+                if (!confirm('⚠️ [최종 확인] 정말로 회원 탈퇴 신청을 전송하시겠습니까? 신청 즉시 로그아웃됩니다.')) {
+                    return;
+                }
+
+                try {
+                    const gasUrl = localStorage.getItem('scorequery_gas_url');
+                    if (gasUrl) {
+                        await callGasApi('withdraw_request', null, {
+                            email: currentUser.email,
+                            pwHash: currentUser.pw
+                        });
+                    } else {
+                        const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+                        const idx = users.findIndex(u => u.email === currentUser.email);
+                        if (idx >= 0) {
+                            users[idx].status = 'deleted';
+                            users[idx].withdrawReqDate = new Date().toISOString();
+                            users[idx].withdrawApproveDate = new Date().toISOString();
+                            localStorage.setItem('scorequery_users', JSON.stringify(users));
+                        }
+                    }
+
+                    alert('🗑️ 자진 회원 탈퇴가 즉시 처리되었습니다.\n로그인 화면으로 이동합니다.');
+                    closeDrawer();
+                    handleLogoutAction();
+                } catch (err) {
+                    alert('❌ 탈퇴 신청 중 오류가 발생했습니다: ' + err.message);
+                }
+            };
+        }
+
+        // ── 5. 마스터 전용 회원 목록 렌더링 및 제어 로직 ──
+        function renderDrawerMasterUsers() {
+            const pendingContainer = document.getElementById('drawer-pending-users-list');
+            const approvedContainer = document.getElementById('drawer-approved-users-list');
+            const deletedContainer = document.getElementById('drawer-deleted-users-list');
+
+            if (!pendingContainer || !approvedContainer || !deletedContainer) return;
+
+            const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+
+            pendingContainer.innerHTML = '';
+            approvedContainer.innerHTML = '';
+            deletedContainer.innerHTML = '';
+
+            let pendingHtml = '';
+            let approvedHtml = '';
+            let deletedHtml = '';
+
+            let pendingCount = 0;
+            let approvedCount = 0;
+
+            users.forEach(u => {
+                const dateStr = u.regDate ? new Date(u.regDate).toLocaleDateString() : '-';
+                const roleBadge = u.isMaster ? '<span class="drawer-user-role-badge">Master</span>' : '';
+                
+                const cardHtml = `
+                    <div class="drawer-user-card" data-email="${u.email}">
+                        <div class="drawer-user-card-header">
+                            <span class="drawer-user-name">${u.name} ${roleBadge}</span>
+                            <span style="font-size:10px; opacity:0.6;">${dateStr}</span>
+                        </div>
+                        <div class="drawer-user-info-row">
+                            📧 ${u.email}<br>
+                            📞 ${u.phone || '미입력'}<br>
+                            🏫 ${u.univ || '미입력'} · ${u.dept || '미입력'}
+                        </div>
+                        <div class="drawer-user-actions">
+                            ${getDrawerUserActionButtons(u)}
+                        </div>
+                    </div>
+                `;
+
+                if (u.status === 'pending') {
+                    pendingHtml += cardHtml;
+                    pendingCount++;
+                } else if (u.status === 'approved') {
+                    approvedHtml += cardHtml;
+                    approvedCount++;
+                } else if (u.status === 'deleted' || u.status === 'rejected') {
+                    deletedHtml += cardHtml;
+                }
+            });
+
+            pendingContainer.innerHTML = pendingHtml || '<div style="font-size:11px; color:#64748b; padding:10px; text-align:center;">대기 중인 신청이 없습니다.</div>';
+            approvedContainer.innerHTML = approvedHtml || '<div style="font-size:11px; color:#64748b; padding:10px; text-align:center;">등록된 회원이 없습니다.</div>';
+            deletedContainer.innerHTML = deletedHtml || '<div style="font-size:11px; color:#64748b; padding:10px; text-align:center;">비활성 회원이 없습니다.</div>';
+
+            document.getElementById('drawer-badge-pending').textContent = pendingCount;
+            document.getElementById('drawer-badge-approved').textContent = approvedCount;
+
+            bindDrawerUserActionEvents();
+        }
+
+        function getDrawerUserActionButtons(u) {
+            if (u.isMaster) return ''; // 마스터 제어 불가
+
+            if (u.status === 'pending') {
+                return `
+                    <button class="btn-drawer-user-action btn-drawer-user-approve" data-action="approve">승인</button>
+                    <button class="btn-drawer-user-action btn-drawer-user-reject" data-action="reject">반려</button>
+                `;
+            } else if (u.status === 'approved') {
+                return `
+                    <button class="btn-drawer-user-action btn-drawer-user-reset" data-action="reset">비번초기화</button>
+                    <button class="btn-drawer-user-action btn-drawer-user-reject" data-action="delete">탈퇴/삭제</button>
+                `;
+            } else if (u.status === 'deleted' || u.status === 'rejected') {
+                return `
+                    <button class="btn-drawer-user-action btn-drawer-user-approve" data-action="restore">복구</button>
+                `;
+            }
+            return '';
+        }
+
+        function bindDrawerUserActionEvents() {
+            drawer.querySelectorAll('.btn-drawer-user-action').forEach(btn => {
+                btn.onclick = async (e) => {
+                    const card = e.target.closest('.drawer-user-card');
+                    const email = card.getAttribute('data-email');
+                    const action = e.target.getAttribute('data-action');
+
+                    if (action === 'approve') {
+                        await handleApprove(email);
+                    } else if (action === 'reject') {
+                        await handleReject(email);
+                    } else if (action === 'delete') {
+                        await handleDeleteUserByMaster(email);
+                    } else if (action === 'restore') {
+                        await handleRestoreUserByMaster(email);
+                    } else if (action === 'reset') {
+                        await handleResetPassword(email);
+                    }
+
+                    // 실행 후 즉시 렌더링 갱신
+                    renderDrawerMasterUsers();
+                };
+            });
+        }
     }
 
     function validateStep3() {
@@ -2909,7 +3153,7 @@
         if (masterLogout) masterLogout.addEventListener('click', handleLogoutAction);
 
         const masterChangePw = document.getElementById('master-change-pw-btn');
-        if (masterChangePw) masterChangePw.addEventListener('click', () => showProfessorInfoMgmtModal('pw'));
+        if (masterChangePw) masterChangePw.addEventListener('click', () => showProfessorInfoMgmtDrawer('pw'));
 
         const masterBack = document.getElementById('master-back-home');
         if (masterBack) masterBack.addEventListener('click', showModeSelection);
@@ -2918,7 +3162,7 @@
         if (adminLogout) adminLogout.addEventListener('click', handleLogoutAction);
 
         const infoMgmtBtn = document.getElementById('admin-info-mgmt-btn');
-        if (infoMgmtBtn) infoMgmtBtn.addEventListener('click', () => showProfessorInfoMgmtModal('info'));
+        if (infoMgmtBtn) infoMgmtBtn.addEventListener('click', () => showProfessorInfoMgmtDrawer('info'));
 
         try {
             const sess = sessionStorage.getItem('scorequery_session');

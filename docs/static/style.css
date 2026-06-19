@@ -2803,3 +2803,387 @@ select.form-input option {
     border: 1px dashed var(--border-glass);
     border-radius: var(--radius-sm);
 }
+
+/* ──────────────────────────────────────────────
+   SLIDE-OUT SIDE DRAWER (개인정보 수정)
+   ────────────────────────────────────────────── */
+.slide-drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99990;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.slide-drawer-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.slide-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 480px;
+    height: 100%;
+    background: rgba(30, 41, 59, 0.96);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -10px 0 25px -5px rgba(0, 0, 0, 0.5), -20px 0 30px -10px rgba(0, 0, 0, 0.7);
+    z-index: 99995;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    color: #f8fafc;
+}
+
+.slide-drawer.active {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.drawer-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fbbf24;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-close-drawer {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.75rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.btn-close-drawer:hover {
+    color: #f8fafc;
+}
+
+.drawer-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    height: calc(100% - 65px);
+}
+
+/* 2열 레이아웃: 좌측 내비게이션, 우측 설정 패널 */
+.drawer-sidebar {
+    width: 140px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.2);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 8px;
+    gap: 6px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.drawer-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    gap: 6px;
+    text-align: center;
+    font-family: inherit;
+}
+
+.drawer-tab-btn span.tab-icon {
+    font-size: 1.25rem;
+}
+
+.drawer-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: #f1f5f9;
+}
+
+.drawer-tab-btn.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.3);
+    color: #c7d2fe;
+}
+
+.drawer-content-area {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    background: rgba(30, 41, 59, 0.3);
+}
+
+.drawer-tab-pane {
+    display: none;
+    animation: fadeIn 0.25s ease;
+}
+
+.drawer-tab-pane.active {
+    display: block;
+}
+
+/* 폼 스타일 */
+.drawer-form-group {
+    margin-bottom: 16px;
+}
+
+.drawer-form-group label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    letter-spacing: 0.03em;
+}
+
+.drawer-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-glass);
+    background: rgba(15, 23, 42, 0.6);
+    color: white;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.drawer-input:focus {
+    border-color: rgba(99, 102, 241, 0.6);
+}
+
+.drawer-input[readonly] {
+    background: rgba(15, 23, 42, 0.3);
+    color: #64748b;
+    border-color: rgba(255, 255, 255, 0.05);
+    cursor: not-allowed;
+}
+
+.drawer-btn-primary {
+    width: 100%;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border: none;
+    padding: 11px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    font-family: inherit;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.drawer-btn-primary:hover {
+    opacity: 0.9;
+}
+
+.drawer-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-glass);
+    color: #f1f5f9;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.drawer-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.drawer-error-msg {
+    color: #f87171;
+    font-size: 12px;
+    margin-bottom: 16px;
+    line-height: 1.4;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 10px;
+    border-radius: 6px;
+}
+
+/* 연동 테스트 상태 배지 */
+.ping-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 8px;
+}
+.ping-status-badge.success {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+}
+.ping-status-badge.fail {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+.ping-status-badge.loading {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+}
+
+/* 마스터용 회원 관리 카드 레이아웃 */
+.drawer-user-section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.drawer-user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.drawer-user-card {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.drawer-user-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.drawer-user-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.drawer-user-role-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.drawer-user-info-row {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.drawer-user-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    margin-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    padding-top: 8px;
+}
+
+.btn-drawer-user-action {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    border: 1px solid transparent;
+}
+
+.btn-drawer-user-approve {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #34d399;
+}
+.btn-drawer-user-approve:hover {
+    background: rgba(16, 185, 129, 0.3);
+}
+
+.btn-drawer-user-reject {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+.btn-drawer-user-reject:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.btn-drawer-user-reset {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.25);
+    color: #fbbf24;
+}
+.btn-drawer-user-reset:hover {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+/* 탈퇴 탭 탈퇴확인박스 */
+.drawer-warn-box {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #fca5a5;
+    line-height: 1.5;
+}
+
+/* 반응형 모바일 대응 */
+@media (max-width: 500px) {
+    .slide-drawer {
+        width: 100%;
+    }
+}
