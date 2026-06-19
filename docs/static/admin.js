@@ -2997,10 +2997,44 @@
             addAnotherCourse();
         });
 
+        // 📊 수강생 성적 열람 현황 - 자세히 보기
+        const btnViewStatsDetail = document.getElementById('btn-view-stats-detail');
+        if (btnViewStatsDetail) {
+            btnViewStatsDetail.addEventListener('click', openStatsDetailModal);
+        }
+
+        // 상세 모달 닫기
+        const btnStatsModalClose = document.getElementById('btn-stats-modal-close');
+        const btnStatsModalCloseX = document.getElementById('btn-stats-modal-close-x');
+        const statsDetailModal = document.getElementById('stats-detail-modal');
+
+        if (btnStatsModalClose) {
+            btnStatsModalClose.addEventListener('click', closeStatsDetailModal);
+        }
+        if (btnStatsModalCloseX) {
+            btnStatsModalCloseX.addEventListener('click', closeStatsDetailModal);
+        }
+        if (statsDetailModal) {
+            statsDetailModal.addEventListener('click', (e) => {
+                if (e.target === statsDetailModal) {
+                    closeStatsDetailModal();
+                }
+            });
+        }
+
+        // 상세 모달 필터 탭 바인딩
+        const tabFilterAll = document.getElementById('tab-filter-all');
+        const tabFilterViewed = document.getElementById('tab-filter-viewed');
+        const tabFilterUnviewed = document.getElementById('tab-filter-unviewed');
+
+        if (tabFilterAll) tabFilterAll.addEventListener('click', () => switchStatsFilter('all'));
+        if (tabFilterViewed) tabFilterViewed.addEventListener('click', () => switchStatsFilter('viewed'));
+        if (tabFilterUnviewed) tabFilterUnviewed.addEventListener('click', () => switchStatsFilter('unviewed'));
+
         // Complete actions
         document.getElementById('btn-download-excel').addEventListener('click', downloadSampleExcel);
         document.getElementById('btn-go-home').addEventListener('click', showModeSelection);
-
+        
         // 과목 선택 변경
         document.getElementById('select-course').addEventListener('change', (e) => {
             selectCourse(parseInt(e.target.value));
@@ -5143,9 +5177,196 @@
             textEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>현재 수강생 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(열람율 <strong>${percent}%</strong>)이 성적을 확인했습니다.`;
             fillEl.style.width = `${percent}%`;
 
+            // 자세히 보기 버튼 표시 처리
+            const btnDetail = document.getElementById('btn-view-stats-detail');
+            if (btnDetail) {
+                btnDetail.style.display = 'inline-flex';
+            }
+
         } catch (e) {
             console.error('Error rendering view stats:', e);
             widget.style.display = 'none';
+        }
+    }
+
+    let currentStatsFilter = 'all';
+
+    function openStatsDetailModal() {
+        const modal = document.getElementById('stats-detail-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        modal.offsetHeight; // Force reflow
+        modal.classList.add('active');
+        
+        switchStatsFilter('all');
+    }
+
+    function closeStatsDetailModal() {
+        const modal = document.getElementById('stats-detail-modal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        setTimeout(() => {
+            if (!modal.classList.contains('active')) {
+                modal.style.display = 'none';
+            }
+        }, 300);
+    }
+
+    function switchStatsFilter(filterType) {
+        currentStatsFilter = filterType;
+        
+        const tabs = ['all', 'viewed', 'unviewed'];
+        tabs.forEach(tab => {
+            const btn = document.getElementById(`tab-filter-${tab}`);
+            if (btn) {
+                if (tab === filterType) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            }
+        });
+        
+        renderViewStatsDetail(filterType);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderViewStatsDetail(filterType) {
+        const summaryEl = document.getElementById('stats-detail-summary');
+        const tbody = document.getElementById('stats-detail-tbody');
+        if (!summaryEl || !tbody) return;
+
+        const { course } = adminConfig;
+        if (!course || !course.name) return;
+
+        let rawData = null;
+        for (const key of getCourseDataKeys(course)) {
+            rawData = localStorage.getItem(key);
+            if (rawData) break;
+        }
+        if (!rawData) {
+            summaryEl.innerHTML = '성적 데이터가 존재하지 않습니다.';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 20px;">성적 데이터가 업로드되지 않았습니다.</td></tr>';
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(rawData);
+            const studentEntries = Object.values(parsed.students || {});
+            const totalCount = studentEntries.length;
+            if (totalCount === 0) {
+                summaryEl.innerHTML = '등록된 수강생이 없습니다.';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 20px;">등록된 수강생이 없습니다.</td></tr>';
+                return;
+            }
+
+            const viewLogs = JSON.parse(localStorage.getItem('scorequery_view_logs') || '[]');
+            const subjectId = getCourseId(course);
+            const subjectLogs = viewLogs.filter(log => log.subjectId === subjectId);
+            const viewedKeys = new Set(subjectLogs.map(log => log.viewKey || log.studentKey).filter(Boolean));
+            const legacyViewedHashes = new Set(subjectLogs.map(log => log.sidHash).filter(Boolean));
+
+            const viewDateMap = {};
+            subjectLogs.forEach(log => {
+                const key = log.viewKey || log.studentKey;
+                if (key) {
+                    const existing = viewDateMap[key];
+                    if (!existing || new Date(log.viewDate || log.timestamp) > new Date(existing)) {
+                        viewDateMap[key] = log.viewDate || log.timestamp;
+                    }
+                }
+            });
+
+            const studentsList = [];
+            Object.entries(parsed.students || {}).forEach(([key, s]) => {
+                const isViewed = viewedKeys.has(key) || (s.student_id_hash && legacyViewedHashes.has(s.student_id_hash));
+                
+                let viewDate = viewDateMap[key] || null;
+                if (!viewDate && s.student_id_hash) {
+                    const legLog = subjectLogs.find(l => l.sidHash === s.student_id_hash);
+                    if (legLog) {
+                        viewDate = legLog.viewDate || legLog.timestamp || null;
+                    }
+                }
+
+                studentsList.push({
+                    key: key,
+                    name: s.name_masked || '이*름',
+                    sid: s.student_id_masked || '학*번',
+                    isViewed: isViewed,
+                    viewDate: viewDate
+                });
+            });
+
+            studentsList.sort((a, b) => a.sid.localeCompare(b.sid));
+
+            const viewedCount = studentsList.filter(s => s.isViewed).length;
+            const unviewedCount = totalCount - viewedCount;
+            const percent = ((viewedCount / totalCount) * 100).toFixed(1);
+
+            summaryEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>현재 수강생 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(열람율 <strong>${percent}%</strong>)이 성적을 확인했습니다.`;
+            
+            const tabAll = document.getElementById('tab-filter-all');
+            const tabViewed = document.getElementById('tab-filter-viewed');
+            const tabUnviewed = document.getElementById('tab-filter-unviewed');
+            if (tabAll) tabAll.textContent = `전체 (${totalCount})`;
+            if (tabViewed) tabViewed.textContent = `열람함 (${viewedCount})`;
+            if (tabUnviewed) tabUnviewed.textContent = `미열람 (${unviewedCount})`;
+
+            let filteredList = studentsList;
+            if (filterType === 'viewed') {
+                filteredList = studentsList.filter(s => s.isViewed);
+            } else if (filterType === 'unviewed') {
+                filteredList = studentsList.filter(s => !s.isViewed);
+            }
+
+            if (filteredList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 20px;">조건에 해당하는 학생이 없습니다.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            filteredList.forEach((s, idx) => {
+                const statusBadge = s.isViewed 
+                    ? '<span class="badge-viewed">열람</span>' 
+                    : '<span class="badge-unviewed">미열람</span>';
+                
+                let dateStr = '-';
+                if (s.isViewed && s.viewDate) {
+                    try {
+                        const d = new Date(s.viewDate);
+                        const pad = (n) => String(n).padStart(2, '0');
+                        dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                    } catch (err) {
+                        dateStr = '-';
+                    }
+                }
+
+                html += `
+                    <tr>
+                        <td style="text-align: center; color: var(--text-secondary);">${idx + 1}</td>
+                        <td>${escapeHtml(s.name)}</td>
+                        <td>${escapeHtml(s.sid)}</td>
+                        <td style="text-align: center;">${statusBadge}</td>
+                        <td class="view-date-col" style="text-align: center; color: var(--text-secondary);">${dateStr}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+
+        } catch (err) {
+            console.error('Error rendering view stats detail:', err);
+            summaryEl.innerHTML = '에러 발생: 상세 현황을 렌더링하지 못했습니다.';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 20px;">에러가 발생했습니다.</td></tr>';
         }
     }
 
