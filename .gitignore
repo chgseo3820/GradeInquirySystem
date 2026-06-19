@@ -1,29 +1,47 @@
-# Python
+# ───── Python ─────
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 venv/
+.venv/
+env/
 .env
+.env.*
+!.env.example
 
-# Excel 원본 (개인정보 포함 — GitHub에 올리지 않음)
+# ───── 개인정보 포함 원본/파생 파일 (절대 커밋 금지) ─────
+# Excel 원본 — 학번/전화번호/이메일 포함
 *.xlsx
 *.xls
 *.xlsm
+# 한글 문서
 *.docx
+# 모든 암호화 산출물 (PBKDF2 키 노출 자체는 위협 아님이나, 정책상 비공개)
 *.enc
 *.enc.json
+# 평문 성적 JSON
 data.json
 docs/data.json
 docs/data.enc.json
 
-# Local deployment/config secrets
+# ───── 로컬 비밀 설정 ─────
 config.json
 config.enc.json
 
-# OS
+# ───── 빌드/임시 ─────
+deploy_temp/
+restored/
+*.log
+
+# ───── OS ─────
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# IDE
+# ───── IDE ─────
 .vscode/
 .idea/
+*.swp
+*.swo
+*~

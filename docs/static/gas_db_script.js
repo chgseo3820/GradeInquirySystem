@@ -38,6 +38,12 @@ function doPost(e) {
       result = handleChangePw(sheet, auth, payload.newPwHash);
     } else if (action === "withdraw_request") {
       result = handleWithdrawRequest(sheet, auth);
+    } else if (action === "request_pw_reset") {
+      // 회원 본인의 셀프 비밀번호 리셋 1단계: 이메일로 인증 코드 발송
+      result = handleRequestPwReset(sheet, payload.email);
+    } else if (action === "confirm_pw_reset") {
+      // 회원 본인의 셀프 비밀번호 리셋 2단계: 코드 확인 + 새 비밀번호 설정
+      result = handleConfirmPwReset(sheet, payload.email, payload.code, payload.newPwHash);
     } else {
       throw new Error("알 수 없는 액션: " + action);
     }
@@ -57,16 +63,36 @@ function doOptions(e) {
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
+// 시트 컬럼 정의 (12 → 14열로 확장: resetTokenHash, resetTokenExp 추가)
+var SHEET_HEADERS = [
+  "email", "name", "univ", "dept", "pw", "phone", "status", "isMaster",
+  "regDate", "approveDate", "withdrawReqDate", "withdrawApproveDate",
+  "resetTokenHash", "resetTokenExp"
+];
+var SHEET_COL_COUNT = SHEET_HEADERS.length; // 14
+var COL_EMAIL = 1, COL_NAME = 2, COL_UNIV = 3, COL_DEPT = 4, COL_PW = 5,
+    COL_PHONE = 6, COL_STATUS = 7, COL_ISMASTER = 8, COL_REGDATE = 9,
+    COL_APPROVEDATE = 10, COL_WITHDRAWREQ = 11, COL_WITHDRAWAPP = 12,
+    COL_RESET_TOKEN_HASH = 13, COL_RESET_TOKEN_EXP = 14;
+
 // "Users" 시트가 없으면 생성하고 헤더 배치
 function getOrCreateUsersSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("Users");
   if (!sheet) {
     sheet = ss.insertSheet("Users");
-    sheet.appendRow(["email", "name", "univ", "dept", "pw", "phone", "status", "isMaster", "regDate", "approveDate", "withdrawReqDate", "withdrawApproveDate"]);
-    // 보기 좋게 첫 행 고정 및 굵게
-    sheet.getRange(1, 1, 1, 12).setFontWeight("bold").setBackground("#f1f5f9");
+    sheet.appendRow(SHEET_HEADERS);
+    sheet.getRange(1, 1, 1, SHEET_COL_COUNT).setFontWeight("bold").setBackground("#f1f5f9");
     sheet.setFrozenRows(1);
+  } else {
+    // 기존 시트 마이그레이션: 12열짜리 구버전 시트라면 토큰 컬럼 자동 추가
+    var existingCols = sheet.getLastColumn();
+    if (existingCols < SHEET_COL_COUNT) {
+      for (var c = existingCols + 1; c <= SHEET_COL_COUNT; c++) {
+        sheet.getRange(1, c).setValue(SHEET_HEADERS[c - 1])
+          .setFontWeight("bold").setBackground("#f1f5f9");
+      }
+    }
   }
   return sheet;
 }
@@ -148,10 +174,10 @@ function validateMasterAuth(sheet, auth) {
 function getAllUsersFromSheet(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
-  
-  var range = sheet.getRange(2, 1, lastRow - 1, 12);
+
+  var range = sheet.getRange(2, 1, lastRow - 1, SHEET_COL_COUNT);
   var values = range.getValues();
-  
+
   return values.map(function(row) {
     return {
       email: row[0],
@@ -165,7 +191,9 @@ function getAllUsersFromSheet(sheet) {
       regDate: row[8],
       approveDate: row[9],
       withdrawReqDate: row[10],
-      withdrawApproveDate: row[11]
+      withdrawApproveDate: row[11],
+      resetTokenHash: row[12] || "",
+      resetTokenExp:  row[13] || ""
     };
   });
 }
@@ -400,4 +428,198 @@ function findRowIndexByEmail(sheet, email) {
     }
   }
   return -1;
+}
+
+
+// ──────────────────────────────────────────────
+// 셀프 비밀번호 리셋 (자체 서비스)
+// ──────────────────────────────────────────────
+//
+// 흐름:
+//  1) request_pw_reset(email)
+//     - 계정이 존재하고 status==='approved' 면 6자리 코드를 생성해 메일로 발송.
+//     - 시트에는 SHA-256(code) 와 만료 시각(epoch ms) 만 저장.
+//     - 동일 계정에 대해 60초 이내 재요청은 무시 (스팸/스캔 방지).
+//     - 계정 존재 여부와 관계없이 동일한 응답을 반환 → 계정 열거 방지.
+//  2) confirm_pw_reset(email, code, newPwHash)
+//     - 시트의 토큰 해시/만료가 일치하고 만료되지 않았으면 pw 갱신, 토큰 폐기.
+//
+// 보안 결정:
+//  - 토큰은 시트에 평문으로 저장하지 않는다. SHA-256 해시만 보관.
+//  - 토큰 TTL: RESET_TOKEN_TTL_MIN 분 (기본 10분).
+//  - 1회 사용 후 즉시 폐기.
+//  - 동일 이메일 재요청 throttle: RESET_REQUEST_THROTTLE_SEC 초.
+
+var RESET_TOKEN_TTL_MIN = 10;
+var RESET_REQUEST_THROTTLE_SEC = 60;
+
+function _sha256Hex(input) {
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(input),
+    Utilities.Charset.UTF_8
+  );
+  var hex = "";
+  for (var i = 0; i < bytes.length; i++) {
+    var b = bytes[i] & 0xff;
+    hex += (b < 16 ? "0" : "") + b.toString(16);
+  }
+  return hex;
+}
+
+function _generateResetCode() {
+  // 6자리 숫자 (앞자리 0 포함). 사용자가 손으로 쉽게 옮길 수 있도록.
+  var n = Math.floor(Math.random() * 1000000);
+  var s = String(n);
+  while (s.length < 6) s = "0" + s;
+  return s;
+}
+
+// 외부 응답은 계정 존재 여부와 무관하게 동일하게 위장
+function _genericResetRequestResponse() {
+  return {
+    requested: true,
+    message:
+      "해당 이메일이 승인된 회원이라면 비밀번호 재설정 코드를 발송했습니다. " +
+      "메일함을 확인해 주세요. (스팸함 포함)"
+  };
+}
+
+function handleRequestPwReset(sheet, email) {
+  if (!email || typeof email !== "string") {
+    throw new Error("이메일이 필요합니다.");
+  }
+  email = email.trim().toLowerCase();
+
+  // 입력 형식이 명백히 잘못된 경우만 거절. 그 외에는 모두 동일 응답.
+  if (email.indexOf("@") < 0) {
+    throw new Error("이메일 형식이 올바르지 않습니다.");
+  }
+
+  var users = getAllUsersFromSheet(sheet);
+  var user = users.find(function (u) {
+    return String(u.email || "").toLowerCase() === email;
+  });
+
+  // 계정 없음 / 미승인 → 위장 응답 (계정 열거 방지)
+  if (!user || user.status !== "approved") {
+    return _genericResetRequestResponse();
+  }
+
+  var rowIndex = findRowIndexByEmail(sheet, user.email);
+  if (rowIndex < 2) {
+    return _genericResetRequestResponse();
+  }
+
+  // 60초 이내 재요청 throttle
+  var now = Date.now();
+  var prevExp = Number(user.resetTokenExp || 0);
+  if (prevExp) {
+    var prevIssuedAtMs = prevExp - RESET_TOKEN_TTL_MIN * 60 * 1000;
+    if (now - prevIssuedAtMs < RESET_REQUEST_THROTTLE_SEC * 1000) {
+      // 이미 조금 전에 발급함 → 새 코드 생성 없이 위장 응답
+      return _genericResetRequestResponse();
+    }
+  }
+
+  // 새 코드 생성
+  var code = _generateResetCode();
+  var codeHash = _sha256Hex(code);
+  var expMs = now + RESET_TOKEN_TTL_MIN * 60 * 1000;
+
+  sheet.getRange(rowIndex, COL_RESET_TOKEN_HASH).setValue(codeHash);
+  sheet.getRange(rowIndex, COL_RESET_TOKEN_EXP).setValue(expMs);
+
+  // 메일 발송
+  try {
+    var subject = "[ScoreQuery] 비밀번호 재설정 코드 안내";
+    var body =
+      (user.name || "회원") + "님 안녕하십니까,\n\n" +
+      "ScoreQuery 비밀번호 재설정 요청이 접수되었습니다.\n" +
+      "아래의 6자리 인증 코드를 ScoreQuery 비밀번호 재설정 화면에 입력해 주세요.\n\n" +
+      "■ 인증 코드: " + code + "\n" +
+      "■ 유효 시간: " + RESET_TOKEN_TTL_MIN + "분\n\n" +
+      "만약 본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.\n" +
+      "(이미 발급된 이전 코드는 폐기되었습니다.)\n\n" +
+      "- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+      "감사합니다.\n" +
+      "ScoreQuery 관리자";
+    MailApp.sendEmail(user.email, subject, body);
+  } catch (mailErr) {
+    Logger.log("비밀번호 재설정 메일 발송 실패: " + mailErr.message);
+    // 메일 발송 실패시에도 응답은 동일 (운영자가 로그로 추적)
+  }
+
+  return _genericResetRequestResponse();
+}
+
+function handleConfirmPwReset(sheet, email, code, newPwHash) {
+  if (!email || !code || !newPwHash) {
+    throw new Error("이메일, 인증 코드, 새 비밀번호가 모두 필요합니다.");
+  }
+  email = String(email).trim().toLowerCase();
+
+  // 새 비밀번호 해시 형식 검증 (클라이언트가 보낸 SHA-256 hex)
+  if (!/^[0-9a-f]{64}$/i.test(String(newPwHash))) {
+    throw new Error("새 비밀번호 형식이 올바르지 않습니다.");
+  }
+
+  var users = getAllUsersFromSheet(sheet);
+  var user = users.find(function (u) {
+    return String(u.email || "").toLowerCase() === email;
+  });
+
+  // 일반적인 거절 메시지 (정확한 사유는 노출하지 않음)
+  var genericInvalid = "인증 코드가 올바르지 않거나 만료되었습니다. 다시 요청해 주세요.";
+
+  if (!user || user.status !== "approved") {
+    throw new Error(genericInvalid);
+  }
+
+  var rowIndex = findRowIndexByEmail(sheet, user.email);
+  if (rowIndex < 2) {
+    throw new Error(genericInvalid);
+  }
+
+  var savedHash = String(user.resetTokenHash || "");
+  var expMs = Number(user.resetTokenExp || 0);
+
+  if (!savedHash || !expMs) {
+    throw new Error(genericInvalid);
+  }
+  if (Date.now() > expMs) {
+    // 만료된 토큰은 청소
+    sheet.getRange(rowIndex, COL_RESET_TOKEN_HASH).setValue("");
+    sheet.getRange(rowIndex, COL_RESET_TOKEN_EXP).setValue("");
+    throw new Error(genericInvalid);
+  }
+
+  var givenHash = _sha256Hex(String(code).trim());
+  if (givenHash !== savedHash) {
+    throw new Error(genericInvalid);
+  }
+
+  // 검증 통과 → 비밀번호 갱신 + 토큰 폐기
+  sheet.getRange(rowIndex, COL_PW).setValue(newPwHash);
+  sheet.getRange(rowIndex, COL_RESET_TOKEN_HASH).setValue("");
+  sheet.getRange(rowIndex, COL_RESET_TOKEN_EXP).setValue("");
+
+  // 변경 사실 알림 메일 (보안 알림)
+  try {
+    MailApp.sendEmail({
+      to: user.email,
+      subject: "[ScoreQuery] 비밀번호가 변경되었습니다",
+      body:
+        (user.name || "회원") + "님 안녕하십니까,\n\n" +
+        "ScoreQuery 계정의 비밀번호가 방금 재설정되었습니다.\n" +
+        "본인이 요청한 작업이 아니라면 즉시 마스터 계정(armour@tu.ac.kr)으로 알려주십시오.\n\n" +
+        "- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+        "감사합니다.\n" +
+        "ScoreQuery 관리자"
+    });
+  } catch (mailErr) {
+    Logger.log("비밀번호 변경 알림 메일 발송 실패: " + mailErr.message);
+  }
+
+  return { email: user.email, reset: true };
 }

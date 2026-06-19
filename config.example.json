@@ -1,3 +1,4 @@
 {
+  "_comment": "이 파일은 예시입니다. 'config.json' 으로 복사한 뒤 본인 환경에 맞는 값으로 채우세요. config.json 은 .gitignore 로 제외됩니다.",
   "gas_url": "https://script.google.com/macros/s/YOUR_DEPLOYED_WEB_APP_ID/exec"
 }

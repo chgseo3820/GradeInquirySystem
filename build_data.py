@@ -16,35 +16,22 @@ GitHub Pages 배포용 데이터 파일을 생성합니다.
 
 import hashlib
 import json
-import math
 import os
 import re
+
 import openpyxl
 
-from scorequery_crypto import get_env_passphrase, get_passphrase, load_encrypted_json, write_encrypted_json
+from scorequery_crypto import (
+    get_env_passphrase,
+    get_passphrase,
+    load_encrypted_json,
+    write_encrypted_json,
+)
 
-EXCEL_FILE = "2026-1학기_경영정보론_서창갑.xlsx"
+EXCEL_FILE = os.environ.get("SCOREQUERY_EXCEL", "2026-1학기_경영정보론_서창갑.xlsx")
 PLAINTEXT_OUTPUT_FILE = "docs/data.json"
 OUTPUT_FILE = "docs/data.enc.json"
 ENCRYPTED_CONFIG_FILE = "config.enc.json"
-
-# 컬럼 인덱스 (0-based)
-COL = {
-    "department": 0,
-    "class_num": 1,
-    "student_id": 2,
-    "name": 3,
-    "phone": 4,
-    "quiz_score": 63,
-    "attendance": 64,
-    "midterm": 65,
-    "final": 66,
-    "total": 67,
-    "rank": 68,
-    "grade": 69,
-    "absences": 70,
-    "remark": 71,
-}
 
 
 def safe_float(v):

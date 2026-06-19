@@ -1,11 +1,17 @@
 /**
- * ScoreQuery ??Frontend Logic
- * ?적 조회 ?스???론?엔?? */
+ * ScoreQuery — Frontend Logic (Flask 개발 서버용)
+ * 성적 조회 시스템 프론트엔드
+ *
+ * 이 파일은 Flask 개발 서버(`app.py`)에서 노출되는 `/api/score` 엔드포인트를
+ * 호출하여 학생 성적을 조회합니다.
+ * 운영 배포본(GitHub Pages, `docs/static/app.js`)은 SHA-256 해시 키 기반의
+ * 정적 클라이언트 조회를 사용하므로 별도 파일입니다.
+ */
 
 (() => {
     'use strict';
 
-    // ?? DOM References ??
+    // ── DOM References ──
     const loginSection = document.getElementById('login-section');
     const resultSection = document.getElementById('result-section');
     const loginForm = document.getElementById('login-form');
@@ -15,33 +21,33 @@
     const errorMsg = document.getElementById('error-message');
     const logoutBtn = document.getElementById('logout-btn');
 
-    // ?? Score Card Config ??
+    // ── Score Card Config ──
     const SCORE_FIELDS = [
-        { key: 'quiz_score', label: '?즈', icon: '?', max: 30, cssClass: 'card-quiz' },
-        { key: 'attendance_score', label: '출석', icon: '?', max: 30, cssClass: 'card-attendance' },
-        { key: 'midterm_score', label: '중간고사', icon: '?', max: 20, cssClass: 'card-midterm' },
-        { key: 'final_score', label: '기말고사', icon: '?', max: 20, cssClass: 'card-final' },
+        { key: 'quiz_score', label: '퀴즈', icon: '📝', max: 30, cssClass: 'card-quiz' },
+        { key: 'attendance_score', label: '출석', icon: '✅', max: 30, cssClass: 'card-attendance' },
+        { key: 'midterm_score', label: '중간고사', icon: '📚', max: 20, cssClass: 'card-midterm' },
+        { key: 'final_score', label: '기말고사', icon: '🎯', max: 20, cssClass: 'card-final' },
         { key: 'total_score', label: '성적', icon: '🏆', max: 100, cssClass: 'card-total' },
     ];
 
-    // ?? Chart Instance ??
+    // ── Chart Instance ──
     let radarChart = null;
 
-    // ?? Event Listeners ??
+    // ── Event Listeners ──
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
 
-    // ?화번호 ?력 ???자??용, 4?리 ?한
+    // 전화번호 입력: 숫자만 허용, 4자리 제한
     phoneLast4Input.addEventListener('input', (e) => {
         e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
     });
 
-    // ?번 ?력 ???자??용
+    // 학번 입력: 숫자만 허용
     studentIdInput.addEventListener('input', (e) => {
         e.target.value = e.target.value.replace(/[^0-9]/g, '');
     });
 
-    // ?? Login Handler ??
+    // ── Login Handler ──
     async function handleLogin(e) {
         e.preventDefault();
         hideError();
@@ -50,12 +56,12 @@
         const phoneLast4 = phoneLast4Input.value.trim();
 
         if (!studentId || !phoneLast4) {
-            showError('?번??화번호 ?자리? 모두 ?력??주세??');
+            showError('학번과 전화번호 뒷자리를 모두 입력해 주세요.');
             return;
         }
 
         if (phoneLast4.length !== 4) {
-            showError('?화번호 ?자?4?리??확???력??주세??');
+            showError('전화번호 뒷자리 4자리를 정확히 입력해 주세요.');
             return;
         }
 
@@ -71,20 +77,20 @@
             const data = await res.json();
 
             if (!res.ok) {
-                showError(data.error || '조회???패?습?다.');
+                showError(data.error || '조회에 실패했습니다.');
                 setLoading(false);
                 return;
             }
 
             renderResult(data);
         } catch (err) {
-            showError('?버???결?????습?다.\n?시 ???시 ?도??주세??');
+            showError('서버와 연결할 수 없습니다.\n잠시 후 다시 시도해 주세요.');
         } finally {
             setLoading(false);
         }
     }
 
-    // ?? Logout Handler ??
+    // ── Logout Handler ──
     function handleLogout() {
         resultSection.classList.remove('visible');
         loginSection.style.display = '';
@@ -96,10 +102,11 @@
             radarChart = null;
         }
 
-        // 부?러???환 ???간???레?????크?        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+        // 부드러운 전환 후 잠깐 뒤 스크롤 상단으로
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     }
 
-    // ?? Render Result ??
+    // ── Render Result ──
     function renderResult(data) {
         const { student, class_avg, class_max, class_count } = data;
 
@@ -126,7 +133,7 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // ?? Render Score Cards ??
+    // ── Render Score Cards ──
     function renderScoreCards(student, classAvg) {
         const container = document.getElementById('score-cards');
         container.innerHTML = '';
@@ -151,19 +158,19 @@
                 <div class="card-icon">${field.icon}</div>
                 <div class="card-label">${field.label}</div>
                 <div class="card-score">${displayVal}</div>
-                <div class="card-max">${field.max}??만점</div>
+                <div class="card-max">${field.max}점 만점</div>
                 <div class="progress-bar">
                     <div class="progress-fill" data-width="${pct}"></div>
                 </div>
                 <div class="card-avg-hint">
                     <span class="avg-dot"></span>
-                    분반 ?균 ${avgDisplay}
+                    분반 평균 ${avgDisplay}
                 </div>
             `;
             container.appendChild(card);
         });
 
-        // ?로그레?바 ?니메이??(?간???레??
+        // 프로그레스바 애니메이션 (잠깐 뒤 트리거)
         requestAnimationFrame(() => {
             setTimeout(() => {
                 container.querySelectorAll('.progress-fill').forEach((bar) => {
@@ -173,7 +180,7 @@
         });
     }
 
-    // ?? Render Radar Chart ??
+    // ── Render Radar Chart ──
     function renderRadarChart(student, classAvg, classMax) {
         const ctx = document.getElementById('radar-chart').getContext('2d');
 
@@ -211,7 +218,7 @@
                 labels: labels,
                 datasets: [
                     {
-                        label: '???수',
+                        label: '내 점수',
                         data: myData,
                         backgroundColor: 'rgba(99, 102, 241, 0.15)',
                         borderColor: 'rgba(129, 140, 248, 0.8)',
@@ -223,7 +230,7 @@
                         pointHoverRadius: 7,
                     },
                     {
-                        label: '분반 ?균',
+                        label: '분반 평균',
                         data: avgData,
                         backgroundColor: 'rgba(248, 113, 113, 0.08)',
                         borderColor: 'rgba(248, 113, 113, 0.5)',
@@ -236,7 +243,7 @@
                         pointHoverRadius: 6,
                     },
                     {
-                        label: '최고?수',
+                        label: '최고점수',
                         data: maxData,
                         backgroundColor: 'rgba(250, 204, 21, 0.05)',
                         borderColor: 'rgba(250, 204, 21, 0.4)',
@@ -306,28 +313,28 @@
         });
     }
 
-    // ?? Render Summary ??
+    // ── Render Summary ──
     function renderSummary(student, classCount) {
-        // ?점 뱃?
+        // 평점 뱃지
         const gradeEl = document.getElementById('summary-grade');
         const gradeText = student.grade || '-';
         const gradeClass = getGradeClass(gradeText);
         gradeEl.innerHTML = `<span class="grade-badge ${gradeClass}">${gradeText}</span>`;
 
-        // ?차
+        // 석차
         document.getElementById('summary-rank').textContent = student.rank;
 
-        // 결석 (개근 ?시)
+        // 결석 (개근 표시)
         const absencesEl = document.getElementById('summary-absences');
         if (student.absences === 0) {
-            absencesEl.innerHTML = `<span class="attendance-perfect"><span class="perfect-badge">??개근</span> 0??/span>`;
+            absencesEl.innerHTML = `<span class="attendance-perfect"><span class="perfect-badge">🌟 개근</span> 0회</span>`;
         } else {
-            absencesEl.textContent = `${student.absences}??;
+            absencesEl.textContent = `${student.absences}회`;
         }
 
         // 총점
         document.getElementById('summary-total').textContent =
-            student.total_score !== null ? `${student.total_score}?? : '-';
+            student.total_score !== null ? `${student.total_score}점` : '-';
 
         // 비고
         const remarkBox = document.getElementById('remark-box');
@@ -340,7 +347,7 @@
         }
     }
 
-    // ?? Utilities ??
+    // ── Utilities ──
     function getGradeClass(grade) {
         if (!grade || grade === '-') return 'grade-f';
         const first = grade[0].toUpperCase();

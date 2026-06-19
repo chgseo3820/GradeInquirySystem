@@ -145,6 +145,8 @@
             document.getElementById('admin-auth-panel').style.display = '';
             document.getElementById('admin-login-card').style.display = '';
             document.getElementById('admin-register-card').style.display = 'none';
+            const forgotCard0 = document.getElementById('admin-forgot-pw-card');
+            if (forgotCard0) forgotCard0.style.display = 'none';
             document.getElementById('admin-pending-panel').style.display = 'none';
             document.getElementById('admin-master-panel').style.display = 'none';
             document.getElementById('admin-wizard-container').style.display = 'none';
@@ -3129,6 +3131,8 @@
             e.preventDefault();
             document.getElementById('admin-login-card').style.display = 'none';
             document.getElementById('admin-register-card').style.display = '';
+            const forgotCard = document.getElementById('admin-forgot-pw-card');
+            if (forgotCard) forgotCard.style.display = 'none';
         });
 
         const loginLink = document.getElementById('go-to-login');
@@ -3136,7 +3140,12 @@
             e.preventDefault();
             document.getElementById('admin-login-card').style.display = '';
             document.getElementById('admin-register-card').style.display = 'none';
+            const forgotCard = document.getElementById('admin-forgot-pw-card');
+            if (forgotCard) forgotCard.style.display = 'none';
         });
+
+        // 비밀번호 찾기(셀프 리셋) 흐름 바인딩
+        bindForgotPasswordFlow();
 
         const authBack = document.getElementById('auth-back-home');
         if (authBack) authBack.addEventListener('click', showModeSelection);
@@ -3276,6 +3285,262 @@
         adminConfig.professor = { name: user.name, email: user.email, phone: user.phone };
 
         enterAdminWizard();
+    }
+
+    // ──────────────────────────────────────────────
+    // 셀프 비밀번호 리셋(비밀번호 찾기) 흐름
+    // ──────────────────────────────────────────────
+    //
+    // 동작 요약:
+    //  STEP 1 (forgot-pw-step1-form):
+    //    - 이메일을 GAS 'request_pw_reset' 액션으로 전송 → 6자리 코드 메일 발송 요청.
+    //    - 응답은 계정 존재 여부와 관계없이 항상 동일(계정 열거 방지).
+    //    - 성공 시 STEP 2 폼을 표시.
+    //
+    //  STEP 2 (forgot-pw-step2-form):
+    //    - 6자리 코드 + 새 비밀번호(+재확인)를 GAS 'confirm_pw_reset' 로 검증.
+    //    - 새 비밀번호는 브라우저에서 SHA-256 해시 후 전송(평문 미전송).
+    //    - 성공 시 안내 alert → 로그인 카드로 복귀, 새 비밀번호로 로그인 유도.
+    //
+    //  오프라인(GAS 미설정) 폴백:
+    //    - 셀프 리셋은 메일 발송을 GAS 측에서 수행하므로 GAS 가 없으면 사용 불가.
+    //      이 경우 마스터 교수에게 문의하라는 안내를 표시.
+
+    function _resetForgotPwUI() {
+        const step1Form = document.getElementById('forgot-pw-step1-form');
+        const step2Form = document.getElementById('forgot-pw-step2-form');
+        const step1Err  = document.getElementById('forgot-pw-step1-error');
+        const step1Info = document.getElementById('forgot-pw-step1-info');
+        const step2Err  = document.getElementById('forgot-pw-step2-error');
+        if (step1Form) step1Form.reset();
+        if (step2Form) {
+            step2Form.reset();
+            step2Form.style.display = 'none';
+        }
+        if (step1Form) step1Form.style.display = '';
+        if (step1Err)  { step1Err.style.display  = 'none'; step1Err.textContent  = ''; }
+        if (step1Info) { step1Info.style.display = 'none'; step1Info.textContent = ''; }
+        if (step2Err)  { step2Err.style.display  = 'none'; step2Err.textContent  = ''; }
+    }
+
+    function _showForgotPwCard() {
+        document.getElementById('admin-login-card').style.display    = 'none';
+        document.getElementById('admin-register-card').style.display = 'none';
+        document.getElementById('admin-forgot-pw-card').style.display = '';
+        _resetForgotPwUI();
+        setTimeout(() => {
+            const emailInput = document.getElementById('forgot-pw-email');
+            if (emailInput) emailInput.focus();
+        }, 50);
+    }
+
+    function _showLoginCardFromForgot() {
+        document.getElementById('admin-forgot-pw-card').style.display = 'none';
+        document.getElementById('admin-register-card').style.display  = 'none';
+        document.getElementById('admin-login-card').style.display     = '';
+        _resetForgotPwUI();
+    }
+
+    // 비밀번호 강도 검증 (회원가입과 동일 정책)
+    function _isStrongPassword(pw) {
+        if (!pw || pw.length < 8) return false;
+        const hasLower   = /[a-z]/.test(pw);
+        const hasUpper   = /[A-Z]/.test(pw);
+        const hasDigit   = /[0-9]/.test(pw);
+        const hasSpecial = /[^A-Za-z0-9]/.test(pw);
+        return hasLower && hasUpper && hasDigit && hasSpecial;
+    }
+
+    async function _handleForgotPwStep1(e) {
+        e.preventDefault();
+        const emailEl = document.getElementById('forgot-pw-email');
+        const errEl   = document.getElementById('forgot-pw-step1-error');
+        const infoEl  = document.getElementById('forgot-pw-step1-info');
+        const btn     = document.getElementById('forgot-pw-step1-btn');
+        const step2Form = document.getElementById('forgot-pw-step2-form');
+
+        errEl.style.display = 'none';
+        infoEl.style.display = 'none';
+
+        const email = (emailEl.value || '').trim().toLowerCase();
+        if (!email || email.indexOf('@') < 0) {
+            errEl.textContent = '❌ 올바른 이메일 주소를 입력해 주세요.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        const gasUrl = localStorage.getItem('scorequery_gas_url');
+        if (!gasUrl) {
+            errEl.innerHTML =
+                '⚠️ 셀프 비밀번호 재설정은 원격(GAS) 서버 연동이 필요합니다.<br>' +
+                '관리자(마스터 교수)에게 비밀번호 초기화를 요청해 주세요.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        const originalBtnText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '발송 중...';
+
+        try {
+            // GAS 측에서 계정 존재 여부와 무관하게 동일 응답을 줌(계정 열거 방지)
+            const res = await callGasApi('request_pw_reset', { email });
+            const msg = (res && res.message)
+                ? res.message
+                : '해당 이메일이 승인된 회원이라면 비밀번호 재설정 코드를 발송했습니다. 메일함을 확인해 주세요.';
+            infoEl.textContent = '✅ ' + msg;
+            infoEl.style.display = 'block';
+            // 코드 발급 추적용으로 step2 에서 이메일 사용
+            step2Form.dataset.email = email;
+            step2Form.style.display = '';
+            setTimeout(() => {
+                const codeEl = document.getElementById('forgot-pw-code');
+                if (codeEl) codeEl.focus();
+            }, 50);
+        } catch (err) {
+            console.error('[ScoreQuery] request_pw_reset failed:', err);
+            errEl.textContent = '❌ ' + (err.message || '재설정 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            errEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalBtnText;
+        }
+    }
+
+    async function _handleForgotPwStep2(e) {
+        e.preventDefault();
+        const step2Form = document.getElementById('forgot-pw-step2-form');
+        const codeEl    = document.getElementById('forgot-pw-code');
+        const newPwEl   = document.getElementById('forgot-pw-new');
+        const newPwConfirmEl = document.getElementById('forgot-pw-new-confirm');
+        const errEl     = document.getElementById('forgot-pw-step2-error');
+        const btn       = document.getElementById('forgot-pw-step2-btn');
+
+        errEl.style.display = 'none';
+
+        const email = (step2Form.dataset.email || '').trim().toLowerCase();
+        const code  = (codeEl.value || '').trim();
+        const newPw = (newPwEl.value || '').trim();
+        const newPwConfirm = (newPwConfirmEl.value || '').trim();
+
+        if (!email) {
+            errEl.textContent = '❌ 이메일 정보가 사라졌습니다. 처음부터 다시 시도해 주세요.';
+            errEl.style.display = 'block';
+            return;
+        }
+        if (!/^[0-9]{6}$/.test(code)) {
+            errEl.textContent = '❌ 인증 코드는 6자리 숫자여야 합니다.';
+            errEl.style.display = 'block';
+            return;
+        }
+        if (!_isStrongPassword(newPw)) {
+            errEl.textContent = '❌ 새 비밀번호는 영문 대/소문자, 숫자, 특수문자를 포함해 8자 이상이어야 합니다.';
+            errEl.style.display = 'block';
+            return;
+        }
+        if (newPw !== newPwConfirm) {
+            errEl.textContent = '❌ 새 비밀번호 확인이 일치하지 않습니다.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        const gasUrl = localStorage.getItem('scorequery_gas_url');
+        if (!gasUrl) {
+            errEl.textContent = '⚠️ 원격(GAS) 서버 연동이 해제되어 인증을 마칠 수 없습니다.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        const newPwHash = await sha256(newPw);
+        const originalBtnText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '확인 중...';
+
+        try {
+            await callGasApi('confirm_pw_reset', { email, code, newPwHash });
+
+            // 로컬 캐시 동기화
+            try {
+                const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+                const idx = users.findIndex(u => String(u.email || '').toLowerCase() === email);
+                if (idx >= 0) {
+                    users[idx].pw = newPwHash;
+                    localStorage.setItem('scorequery_users', JSON.stringify(users));
+                }
+            } catch (cacheErr) {
+                console.warn('[ScoreQuery] local user cache update skipped:', cacheErr);
+            }
+
+            alert('✅ 비밀번호가 성공적으로 재설정되었습니다.\n새 비밀번호로 로그인해 주세요.');
+            _showLoginCardFromForgot();
+
+            // 로그인 폼에 이메일 자동 채워 넣어 사용자 편의 향상
+            const loginEmailEl = document.getElementById('admin-login-email');
+            if (loginEmailEl) loginEmailEl.value = email;
+            const loginPwEl = document.getElementById('admin-login-pw');
+            if (loginPwEl) {
+                loginPwEl.value = '';
+                setTimeout(() => loginPwEl.focus(), 50);
+            }
+        } catch (err) {
+            console.error('[ScoreQuery] confirm_pw_reset failed:', err);
+            errEl.textContent = '❌ ' + (err.message || '비밀번호 재설정에 실패했습니다.');
+            errEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalBtnText;
+        }
+    }
+
+    function bindForgotPasswordFlow() {
+        const forgotLink = document.getElementById('go-to-forgot-pw');
+        if (forgotLink) {
+            forgotLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                _showForgotPwCard();
+            });
+        }
+
+        const backToLogin = document.getElementById('forgot-pw-back-to-login');
+        if (backToLogin) {
+            backToLogin.addEventListener('click', (e) => {
+                e.preventDefault();
+                _showLoginCardFromForgot();
+            });
+        }
+
+        const step1Form = document.getElementById('forgot-pw-step1-form');
+        if (step1Form) step1Form.addEventListener('submit', _handleForgotPwStep1);
+
+        const step2Form = document.getElementById('forgot-pw-step2-form');
+        if (step2Form) step2Form.addEventListener('submit', _handleForgotPwStep2);
+
+        const resendBtn = document.getElementById('forgot-pw-resend');
+        if (resendBtn) {
+            resendBtn.addEventListener('click', () => {
+                const step2Form = document.getElementById('forgot-pw-step2-form');
+                if (step2Form) step2Form.style.display = 'none';
+                const step1Form = document.getElementById('forgot-pw-step1-form');
+                if (step1Form) step1Form.style.display = '';
+                const infoEl = document.getElementById('forgot-pw-step1-info');
+                if (infoEl) {
+                    infoEl.textContent = '';
+                    infoEl.style.display = 'none';
+                }
+                const codeEl = document.getElementById('forgot-pw-code');
+                if (codeEl) codeEl.value = '';
+                const emailEl = document.getElementById('forgot-pw-email');
+                if (emailEl) emailEl.focus();
+            });
+        }
+
+        // 코드 입력은 숫자만 허용
+        const codeInput = document.getElementById('forgot-pw-code');
+        if (codeInput) {
+            codeInput.addEventListener('input', (e) => {
+                e.target.value = (e.target.value || '').replace(/[^0-9]/g, '').slice(0, 6);
+            });
+        }
     }
 
     async function handleProfRegister(e) {
@@ -3901,7 +4166,15 @@
         
         const regForm = document.getElementById('admin-register-form');
         if (regForm) regForm.reset();
-        
+
+        // 비밀번호 찾기 카드도 함께 닫고 입력 초기화
+        const forgotCard = document.getElementById('admin-forgot-pw-card');
+        if (forgotCard) forgotCard.style.display = 'none';
+        const forgotStep1 = document.getElementById('forgot-pw-step1-form');
+        if (forgotStep1) forgotStep1.reset();
+        const forgotStep2 = document.getElementById('forgot-pw-step2-form');
+        if (forgotStep2) { forgotStep2.reset(); forgotStep2.style.display = 'none'; }
+
         document.getElementById('admin-auth-panel').style.display = '';
         document.getElementById('admin-login-card').style.display = '';
         document.getElementById('admin-register-card').style.display = 'none';
