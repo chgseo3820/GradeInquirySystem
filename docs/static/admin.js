@@ -3002,57 +3002,24 @@
         // Upload (파이프라인 버튼은 renderPipeline에서 동적 바인딩)
         setupUpload();
 
-        // 🔒 성적조회 접속 비밀번호 2차 검증 확인 모달 바인딩
+        // 🔒 성적조회 접속 비밀번호 노출 토글 바인딩 (2차 인증 모달 없이 즉시 토글)
         const btnViewCode = document.getElementById('btn-view-access-code');
-        const verifyModal = document.getElementById('admin-verify-modal');
-        const btnVerifyCancel = document.getElementById('btn-admin-verify-cancel');
-        const verifyForm = document.getElementById('admin-verify-pw-form');
-        const verifyPwInput = document.getElementById('admin-verify-pw');
-        const verifyError = document.getElementById('admin-verify-error');
         const maskedEl = document.getElementById('publish-access-code-masked');
 
-        if (btnViewCode && verifyModal) {
+        if (btnViewCode && maskedEl) {
             btnViewCode.addEventListener('click', () => {
-                verifyModal.style.display = 'flex';
-                if (verifyPwInput) verifyPwInput.value = '';
-                if (verifyError) verifyError.style.display = 'none';
-                setTimeout(() => verifyPwInput.focus(), 100);
-            });
-        }
+                const originalCode = maskedEl.dataset.original || '';
+                if (!originalCode) return;
 
-        if (btnVerifyCancel && verifyModal) {
-            btnVerifyCancel.addEventListener('click', () => {
-                verifyModal.style.display = 'none';
-            });
-        }
-
-        if (verifyForm && verifyModal) {
-            verifyForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                if (verifyError) verifyError.style.display = 'none';
-                
-                const enteredPw = verifyPwInput.value;
-                const enteredHashed = await sha256(enteredPw);
-                
-                if (currentUser && enteredHashed === currentUser.pw) {
-                    // 검증 성공 -> 6자리 노출
-                    verifyModal.style.display = 'none';
-                    if (maskedEl && maskedEl.dataset.original) {
-                        const originalCode = maskedEl.dataset.original;
-                        maskedEl.textContent = originalCode.split('').join(' ');
-                        
-                        // 10초 후에 다시 마스킹
-                        if (maskedEl.dataset.timer) {
-                            clearTimeout(parseInt(maskedEl.dataset.timer));
-                        }
-                        const timer = setTimeout(() => {
-                            maskedEl.textContent = originalCode[0] + ' * * * * *';
-                        }, 10000);
-                        maskedEl.dataset.timer = String(timer);
-                    }
+                const isMasked = maskedEl.textContent.includes('*');
+                if (isMasked) {
+                    // 마스킹 해제 -> 평문 표시
+                    maskedEl.textContent = originalCode.split('').join(' ');
+                    btnViewCode.textContent = '숨기기 🙈';
                 } else {
-                    // 검증 실패
-                    if (verifyError) verifyError.style.display = 'block';
+                    // 다시 마스킹
+                    maskedEl.textContent = originalCode[0] + ' * * * * *';
+                    btnViewCode.textContent = '보기 👁';
                 }
             });
         }
