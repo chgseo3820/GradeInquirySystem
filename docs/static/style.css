@@ -3566,6 +3566,27 @@ select.form-input option {
     color: #f8fafc;
 }
 
+.btn-modal-excel {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+    padding: 8px 16px;
+    border-radius: var(--radius-md, 6px);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-modal-excel:hover {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #f8fafc;
+}
+
 @media (max-width: 600px) {
     .popup-modal {
         width: 95%;

@@ -3031,6 +3031,12 @@
         if (tabFilterViewed) tabFilterViewed.addEventListener('click', () => switchStatsFilter('viewed'));
         if (tabFilterUnviewed) tabFilterUnviewed.addEventListener('click', () => switchStatsFilter('unviewed'));
 
+        // 상세 모달 엑셀 다운로드 바인딩
+        const btnStatsExcelDownload = document.getElementById('btn-stats-excel-download');
+        if (btnStatsExcelDownload) {
+            btnStatsExcelDownload.addEventListener('click', downloadStatsExcel);
+        }
+
         // Complete actions
         document.getElementById('btn-download-excel').addEventListener('click', downloadSampleExcel);
         document.getElementById('btn-go-home').addEventListener('click', showModeSelection);
@@ -5302,6 +5308,8 @@
                     key: key,
                     name: s.name_masked || '이*름',
                     sid: s.student_id_masked || '학*번',
+                    department: s.department || '-',
+                    classNum: s.class_num || '-',
                     isViewed: isViewed,
                     viewDate: viewDate
                 });
@@ -5367,6 +5375,122 @@
             console.error('Error rendering view stats detail:', err);
             summaryEl.innerHTML = '에러 발생: 상세 현황을 렌더링하지 못했습니다.';
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 20px;">에러가 발생했습니다.</td></tr>';
+        }
+    }
+
+    function downloadStatsExcel() {
+        const { course } = adminConfig;
+        if (!course || !course.name) return;
+
+        let rawData = null;
+        for (const key of getCourseDataKeys(course)) {
+            rawData = localStorage.getItem(key);
+            if (rawData) break;
+        }
+        if (!rawData) {
+            alert('성적 데이터가 존재하지 않아 다운로드할 수 없습니다.');
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(rawData);
+            const studentEntries = Object.values(parsed.students || {});
+            if (studentEntries.length === 0) {
+                alert('등록된 수강생이 없어 다운로드할 수 없습니다.');
+                return;
+            }
+
+            const viewLogs = JSON.parse(localStorage.getItem('scorequery_view_logs') || '[]');
+            const subjectId = getCourseId(course);
+            const subjectLogs = viewLogs.filter(log => log.subjectId === subjectId);
+            const viewedKeys = new Set(subjectLogs.map(log => log.viewKey || log.studentKey).filter(Boolean));
+            const legacyViewedHashes = new Set(subjectLogs.map(log => log.sidHash).filter(Boolean));
+
+            const viewDateMap = {};
+            subjectLogs.forEach(log => {
+                const key = log.viewKey || log.studentKey;
+                if (key) {
+                    const existing = viewDateMap[key];
+                    if (!existing || new Date(log.viewDate || log.timestamp) > new Date(existing)) {
+                        viewDateMap[key] = log.viewDate || log.timestamp;
+                    }
+                }
+            });
+
+            const studentsList = [];
+            Object.entries(parsed.students || {}).forEach(([key, s]) => {
+                const isViewed = viewedKeys.has(key) || (s.student_id_hash && legacyViewedHashes.has(s.student_id_hash));
+                
+                let viewDate = viewDateMap[key] || null;
+                if (!viewDate && s.student_id_hash) {
+                    const legLog = subjectLogs.find(l => l.sidHash === s.student_id_hash);
+                    if (legLog) {
+                        viewDate = legLog.viewDate || legLog.timestamp || null;
+                    }
+                }
+
+                studentsList.push({
+                    key: key,
+                    name: s.name_masked || '이*름',
+                    sid: s.student_id_masked || '학*번',
+                    department: s.department || '-',
+                    classNum: s.class_num || '-',
+                    isViewed: isViewed,
+                    viewDate: viewDate
+                });
+            });
+
+            studentsList.sort((a, b) => a.sid.localeCompare(b.sid));
+
+            let filteredList = studentsList;
+            let filterLabel = '전체';
+            if (currentStatsFilter === 'viewed') {
+                filteredList = studentsList.filter(s => s.isViewed);
+                filterLabel = '열람함';
+            } else if (currentStatsFilter === 'unviewed') {
+                filteredList = studentsList.filter(s => !s.isViewed);
+                filterLabel = '미열람';
+            }
+
+            if (filteredList.length === 0) {
+                alert(`${filterLabel} 상태에 해당하는 수강생이 없습니다.`);
+                return;
+            }
+
+            const headers = ['번호', '학과', '분반', '이름(마스킹)', '학번(마스킹)', '열람여부', '열람일시'];
+            const aoa = [headers];
+
+            filteredList.forEach((s, idx) => {
+                let dateStr = '-';
+                if (s.isViewed && s.viewDate) {
+                    try {
+                        const d = new Date(s.viewDate);
+                        const pad = (n) => String(n).padStart(2, '0');
+                        dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                    } catch (err) {}
+                }
+
+                aoa.push([
+                    idx + 1,
+                    s.department || '-',
+                    s.classNum || '-',
+                    s.name,
+                    s.sid,
+                    s.isViewed ? '열람함' : '미열람',
+                    dateStr
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '열람현황');
+
+            const filename = `${course.year}_${course.semester}_${course.name}_열람현황_${filterLabel}.xlsx`;
+            XLSX.writeFile(wb, filename);
+
+        } catch (err) {
+            console.error('Error generating Excel stats file:', err);
+            alert('Excel 파일 생성 중 오류가 발생했습니다.');
         }
     }
 
