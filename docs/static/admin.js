@@ -889,12 +889,29 @@
         });
         if (existing >= 0) {
             const c = adminConfig.courses[existing];
-            if (!confirm(
-                `⚠️ 동일 과목이 이미 등록되어 있습니다.\n\n` +
-                `「${c.year} ${c.semester} — ${c.name}」\n\n` +
-                `기존 설정을 덮어쓰시겠습니까?`
-            )) {
+            
+            // 기존 평가 기준과 현재 평가 기준의 변경 여부 비교
+            const isChanged = (() => {
+                const cEval = c.evaluation || [];
+                const curEval = adminConfig.evaluation || [];
+                if (cEval.length !== curEval.length) return true;
+                for (let i = 0; i < cEval.length; i++) {
+                    if (cEval[i].id !== curEval[i].id) return true;
+                    if (cEval[i].label !== curEval[i].label) return true;
+                    if (parseFloat(cEval[i].ratio) !== parseFloat(curEval[i].ratio)) return true;
+                }
                 return false;
+            })();
+
+            // 변경사항이 존재할 때만 컨펌 경고 노출
+            if (isChanged) {
+                if (!confirm(
+                    `⚠️ 동일 과목이 이미 등록되어 있습니다.\n\n` +
+                    `「${c.year} ${c.semester} — ${c.name}」\n\n` +
+                    `기존 설정을 덮어쓰시겠습니까?`
+                )) {
+                    return false;
+                }
             }
             adminConfig.courses[existing] = courseEntry;
         } else {
