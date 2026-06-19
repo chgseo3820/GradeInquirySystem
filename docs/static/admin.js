@@ -3329,81 +3329,77 @@
     }
 
     function bindManualDrawerEvents() {
-        const btnOpen = document.getElementById('btn-open-manual');
-        const btnClose = document.getElementById('btn-close-manual');
-        const backdrop = document.getElementById('manual-drawer-backdrop');
-        const drawer = document.getElementById('manual-drawer');
-
-        if (!btnOpen || !drawer || !backdrop) return;
-
-        // Open manual
-        btnOpen.addEventListener('click', () => {
-            backdrop.style.display = 'block';
-            drawer.style.display = 'flex';
-            setTimeout(() => {
-                backdrop.classList.add('active');
-                drawer.classList.add('active');
-            }, 10);
-        });
-
-        // Close manual helper
-        const closeManual = () => {
-            backdrop.classList.remove('active');
-            drawer.classList.remove('active');
-            setTimeout(() => {
-                backdrop.style.display = 'none';
-                drawer.style.display = 'none';
-            }, 300);
-        };
-
-        if (btnClose) btnClose.addEventListener('click', closeManual);
-        backdrop.addEventListener('click', closeManual);
-
-        // Tab Switching (교수자 vs 학생)
-        const tabBtns = drawer.querySelectorAll('.manual-tab-btn');
-        const pages = drawer.querySelectorAll('.manual-page');
-
-        tabBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const role = btn.dataset.role;
-
-                // Active class on tab buttons
-                tabBtns.forEach(b => {
-                    b.classList.toggle('active', b === btn);
-                    b.style.color = b === btn ? '#38bdf8' : 'var(--text-secondary)';
+        // 1. 교수자 매뉴얼 바인딩
+        const btnProfOpen = document.getElementById('btn-open-prof-manual');
+        const btnProfClose = document.getElementById('btn-close-prof-manual');
+        const profBackdrop = document.getElementById('prof-manual-drawer-backdrop');
+        const profDrawer = document.getElementById('prof-manual-drawer');
+        
+        if (btnProfOpen && profDrawer && profBackdrop) {
+            btnProfOpen.addEventListener('click', () => {
+                profBackdrop.style.display = 'block';
+                profDrawer.style.display = 'flex';
+                setTimeout(() => {
+                    profBackdrop.classList.add('active');
+                    profDrawer.classList.add('active');
+                }, 10);
+            });
+            const closeProf = () => {
+                profBackdrop.classList.remove('active');
+                profDrawer.classList.remove('active');
+                setTimeout(() => {
+                    profBackdrop.style.display = 'none';
+                    profDrawer.style.display = 'none';
+                }, 300);
+            };
+            if (btnProfClose) btnProfClose.addEventListener('click', closeProf);
+            profBackdrop.addEventListener('click', closeProf);
+            
+            const profVerBtns = profDrawer.querySelectorAll('.prof-version-btn');
+            profVerBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const ver = btn.dataset.version;
+                    profVerBtns.forEach(b => b.classList.toggle('active', b === btn));
+                    document.getElementById('manual-prof-summary').style.display = ver === 'summary' ? 'block' : 'none';
+                    document.getElementById('manual-prof-detailed').style.display = ver === 'detailed' ? 'block' : 'none';
                 });
-
-                // Update page visibility based on role and version
-                updateManualPages();
             });
-        });
+        }
 
-        // Version Switching (요약 vs 상세)
-        const verBtns = drawer.querySelectorAll('.version-tab-btn');
-        verBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const ver = btn.dataset.version;
-
-                // Active class on version buttons
-                verBtns.forEach(b => b.classList.toggle('active', b === btn));
-
-                // Update page visibility based on role and version
-                updateManualPages();
+        // 2. 학생 매뉴얼 바인딩
+        const btnStuOpen = document.getElementById('btn-open-student-manual');
+        const btnStuClose = document.getElementById('btn-close-student-manual');
+        const stuBackdrop = document.getElementById('student-manual-drawer-backdrop');
+        const stuDrawer = document.getElementById('student-manual-drawer');
+        
+        if (btnStuOpen && stuDrawer && stuBackdrop) {
+            btnStuOpen.addEventListener('click', () => {
+                stuBackdrop.style.display = 'block';
+                stuDrawer.style.display = 'flex';
+                setTimeout(() => {
+                    stuBackdrop.classList.add('active');
+                    stuDrawer.classList.add('active');
+                }, 10);
             });
-        });
-
-        function updateManualPages() {
-            const activeRoleBtn = drawer.querySelector('.manual-tab-btn.active');
-            const activeVerBtn = drawer.querySelector('.version-tab-btn.active');
-            if (!activeRoleBtn || !activeVerBtn) return;
-
-            const role = activeRoleBtn.dataset.role; // 'prof' or 'student'
-            const ver = activeVerBtn.dataset.version; // 'summary' or 'detailed'
-
-            const targetId = `manual-${role}-${ver}`;
-
-            pages.forEach(page => {
-                page.style.display = page.id === targetId ? 'block' : 'none';
+            const closeStu = () => {
+                stuBackdrop.classList.remove('active');
+                stuDrawer.classList.remove('active');
+                setTimeout(() => {
+                    stuBackdrop.style.display = 'none';
+                    stuDrawer.style.display = 'none';
+                }, 300);
+            };
+            if (btnStuClose) btnStuClose.addEventListener('click', closeStu);
+            stuBackdrop.addEventListener('click', closeStu);
+            
+            const stuVerBtns = stuDrawer.querySelectorAll('.student-version-btn');
+            stuVerBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const ver = btn.dataset.version;
+                    stuVerBtns.forEach(b => b.classList.toggle('active', b === btn));
+                    document.getElementById('manual-student-summary').style.display = ver === 'summary' ? 'block' : 'none';
+                    document.getElementById('manual-student-detailed').style.display = ver === 'detailed' ? 'block' : 'none';
+                });
             });
         }
     }

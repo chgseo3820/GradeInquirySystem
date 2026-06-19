@@ -3201,14 +3201,29 @@ select.form-input option {
     }
 }
 
-.manual-tab-btn.active {
-    background: rgba(56, 189, 248, 0.12) !important;
-    border-color: #38bdf8 !important;
-    color: #38bdf8 !important;
-}
-.version-tab-btn.active {
-    background: #38bdf8 !important;
+.prof-version-btn.active {
+    background: #fbbf24 !important;
     color: #0f172a !important;
+}
+.student-version-btn.active {
+    background: #3b82f6 !important;
+    color: #ffffff !important;
+}
+
+#btn-open-prof-manual, #btn-open-student-manual {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+#btn-open-prof-manual:hover {
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+}
+#btn-open-student-manual:hover {
+    background: rgba(59, 130, 246, 0.12) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
 }
 
 .manual-page {
