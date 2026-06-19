@@ -63,13 +63,32 @@ def extract_phone_last4(phone):
     return digits[-4:] if len(digits) >= 4 else digits
 
 
-def make_hash_key(student_id, phone_last4):
+def make_hash_key(student_id, phone_last4, access_code):
     """SHA-256 해시 키 생성 — 원본 역추적 방지"""
-    raw = f"{student_id}|{phone_last4}"
+    raw = f"{student_id}|{phone_last4}|{access_code}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def build():
+    # 🔑 접속 비밀번호 6자리 획득
+    access_code = os.environ.get("SCOREQUERY_ACCESS_CODE", "")
+    if not access_code and os.path.exists("config.json"):
+        try:
+            with open("config.json", "r", encoding="utf-8") as f:
+                import json
+                cfg = json.load(f)
+                access_code = str(cfg.get("access_code", "")).strip()
+        except Exception:
+            pass
+
+    if not access_code:
+        while True:
+            val = input("학생 조회에 사용할 6자리 접속 비밀번호를 설정하세요 (예: 123456): ").strip()
+            if val.isdigit() and len(val) == 6:
+                access_code = val
+                break
+            print("⚠️ 6자리 숫자로 정확히 입력해 주세요.")
+
     wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
     
     # 1. 사용할 시트 결정 (최종성적 -> 총괄 -> 첫 번째 시트 순)
@@ -99,16 +118,36 @@ def build():
         "student_id": find_idx(["학번"]),
         "name": find_idx(["이름", "성명"]),
         "phone": find_idx(["전화", "핸드폰", "연락처", "휴대폰"]),
-        "quiz_score": find_idx(["퀴즈"]),
-        "attendance": find_idx(["출석"]),
-        "midterm": find_idx(["중간"]),
-        "final": find_idx(["기말"]),
         "total": find_idx(["총점", "성적"]),
         "rank": find_idx(["석차", "순위", "등수"], exclude_keywords=["결석"]),
         "grade": find_idx(["학점", "평점", "등급"]),
         "absences": find_idx(["결석", "결석횟수", "결석차시"]),
         "remark": find_idx(["비고"]),
     }
+
+    # 동적 평가항목 추출
+    EVAL_MAPPING = {
+        "quiz": {"label": "퀴즈", "icon": "🎯", "keywords": ["퀴즈"]},
+        "attendance": {"label": "출석", "icon": "📋", "keywords": ["출석"]},
+        "assignment": {"label": "과제", "icon": "📝", "keywords": ["과제"]},
+        "midterm": {"label": "중간고사", "icon": "📖", "keywords": ["중간"]},
+        "final": {"label": "기말고사", "icon": "📕", "keywords": ["기말"]},
+        "presentation": {"label": "발표", "icon": "🎤", "keywords": ["발표"]},
+        "participation": {"label": "참여도", "icon": "🙋", "keywords": ["참여", "참여도"]},
+    }
+    
+    dynamic_eval_meta = []
+    dynamic_evals = []
+    for eval_id, meta in EVAL_MAPPING.items():
+        idx = find_idx(meta["keywords"])
+        if idx is not None:
+            dynamic_evals.append({"id": eval_id, "col_idx": idx, "label": meta["label"]})
+            dynamic_eval_meta.append({
+                "id": eval_id,
+                "label": meta["label"],
+                "icon": meta["icon"],
+                "ratio": 100
+            })
 
     # 필수 컬럼(학번, 이름)이 감지되지 않으면 에러
     if col["student_id"] is None or col["name"] is None:
@@ -142,7 +181,7 @@ def build():
         phone_last4 = extract_phone_last4(phone_val)
 
         # 해시 키 생성
-        hash_key = make_hash_key(sid, phone_last4)
+        hash_key = make_hash_key(sid, phone_last4, access_code)
 
         def get_val(key, default=None):
             idx = col[key]
@@ -150,10 +189,6 @@ def build():
                 return row[idx]
             return default
 
-        quiz = safe_float(get_val("quiz_score"))
-        attendance = safe_float(get_val("attendance"))
-        midterm = safe_float(get_val("midterm"))
-        final = safe_float(get_val("final"))
         total = safe_float(get_val("total"))
         rank_val = get_val("rank")
         grade = get_val("grade") or ""
@@ -168,35 +203,41 @@ def build():
         dept = get_val("department") or ""
         student_name = get_val("name") or ""
 
-        students[hash_key] = {
+        student_data = {
             "department": dept,
             "class_num": class_num,
             "student_id_masked": mask_student_id(sid),
             "name_masked": mask_name(student_name),
-            "quiz_score": quiz,
-            "attendance_score": attendance,
-            "midterm_score": midterm,
-            "final_score": final,
             "total_score": total,
             "rank": rank_val,
             "grade": grade,
             "absences": absences,
             "remark": remark,
         }
+        
+        for ev in dynamic_evals:
+            val = None
+            if ev["col_idx"] < len(row):
+                val = safe_float(row[ev["col_idx"]])
+            student_data[ev["id"] + "_score"] = val
+            
+        students[hash_key] = student_data
 
         # 분반별 집계
         if class_num not in class_scores:
             class_scores[class_num] = {
-                "quiz_score": [],
-                "attendance_score": [],
-                "midterm_score": [],
-                "final_score": [],
                 "total_score": [],
                 "count": 0,
             }
+            for ev in dynamic_evals:
+                class_scores[class_num][ev["id"] + "_score"] = []
+                
         class_scores[class_num]["count"] += 1
-        for field in ["quiz_score", "attendance_score", "midterm_score", "final_score", "total_score"]:
-            val = students[hash_key][field]
+        
+        # 동적 평가항목 추가
+        fields_to_aggregate = ["total_score"] + [ev["id"] + "_score" for ev in dynamic_evals]
+        for field in fields_to_aggregate:
+            val = students[hash_key].get(field)
             if val is not None:
                 class_scores[class_num][field].append(val)
 
@@ -218,7 +259,8 @@ def build():
     for cn, data in class_scores.items():
         avg = {}
         mx = {}
-        for field in ["quiz_score", "attendance_score", "midterm_score", "final_score", "total_score"]:
+        fields_to_aggregate = ["total_score"] + [ev["id"] + "_score" for ev in dynamic_evals]
+        for field in fields_to_aggregate:
             vals = data[field]
             if vals:
                 avg[field] = round(sum(vals) / len(vals), 2)
@@ -257,17 +299,33 @@ def build():
     except Exception:
         pass
 
+    # 파일명 기반 메타데이터 추출 로직
+    filename = os.path.basename(EXCEL_FILE)
+    m = re.match(r'^(\d{4})-(.+?)_(.+?)_(.+)\.xlsx$', filename)
+    if m:
+        course_year = m.group(1)
+        course_semester = m.group(2)
+        course_name = m.group(3)
+        prof_name = m.group(4)
+    else:
+        course_year = "2026"
+        course_semester = "1학기"
+        course_name = "경영정보시스템"
+        prof_name = "서창갑"
+
     # JSON 출력
     output = {
         "course": {
-            "year": "2026",
-            "semester": "1학기",
-            "name": "경영정보시스템"
+            "year": course_year,
+            "semester": course_semester,
+            "name": course_name
         },
         "professor": {
-            "name": "서창갑",
+            "name": prof_name,
             "email": "armour@tu.ac.kr"
         },
+        "evaluation": dynamic_eval_meta,
+        "access_code": access_code,
         "gas_url": gas_url,
         "students": students,
         "class_avg": class_averages,

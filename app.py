@@ -56,7 +56,26 @@ RATE_MAX_PER_WINDOW = 30
 _rate_buckets: dict[str, deque] = defaultdict(deque)
 
 
-app = Flask(__name__)
+CONFIG_FILE = os.path.join("config.json")
+
+
+def _get_configured_access_code() -> str:
+    """설정 파일(config.json) 또는 환경변수에서 6자리 접속 비밀번호 조회"""
+    env_val = os.environ.get("SCOREQUERY_ACCESS_CODE")
+    if env_val:
+        return env_val.strip()
+
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                return str(cfg.get("access_code", "")).strip()
+        except Exception:
+            pass
+    return ""
+
+
+app = Flask(__name__, static_folder="docs/static")
 ENCRYPTED_DATA_FILE = os.path.join("docs", "data.enc.json")
 PLAINTEXT_DATA_FILE = os.path.join("docs", "data.json")
 PUBLIC_CONFIG_FILE = os.path.join("docs", "public-config.json")
@@ -143,16 +162,37 @@ def load_excel():
         "student_id": find_header_idx(headers, ["학번"]),
         "name":       find_header_idx(headers, ["이름", "성명"]),
         "phone":      find_header_idx(headers, ["전화", "핸드폰", "연락처", "휴대폰"]),
-        "quiz_score": find_header_idx(headers, ["퀴즈"]),
-        "attendance": find_header_idx(headers, ["출석"]),
-        "midterm":    find_header_idx(headers, ["중간"]),
-        "final":      find_header_idx(headers, ["기말"]),
         "total":      find_header_idx(headers, ["총점", "성적"]),
         "rank":       find_header_idx(headers, ["석차", "순위", "등수"], exclude_keywords=["결석"]),
         "grade":      find_header_idx(headers, ["학점", "평점", "등급"]),
         "absences":   find_header_idx(headers, ["결석", "결석횟수", "결석차시"]),
         "remark":     find_header_idx(headers, ["비고"]),
     }
+
+    # 동적 평가항목 추출
+    EVAL_MAPPING = {
+        "quiz": {"label": "퀴즈", "icon": "🎯", "keywords": ["퀴즈"]},
+        "attendance": {"label": "출석", "icon": "📋", "keywords": ["출석"]},
+        "assignment": {"label": "과제", "icon": "📝", "keywords": ["과제"]},
+        "midterm": {"label": "중간고사", "icon": "📖", "keywords": ["중간"]},
+        "final": {"label": "기말고사", "icon": "📕", "keywords": ["기말"]},
+        "presentation": {"label": "발표", "icon": "🎤", "keywords": ["발표"]},
+        "participation": {"label": "참여도", "icon": "🙋", "keywords": ["참여", "참여도"]},
+    }
+    
+    global dynamic_eval_meta
+    dynamic_eval_meta = []
+    dynamic_evals = [] # [{'id': 'quiz', 'col_idx': 5}, ...]
+    for eval_id, meta in EVAL_MAPPING.items():
+        idx = find_header_idx(headers, meta["keywords"])
+        if idx is not None:
+            dynamic_evals.append({"id": eval_id, "col_idx": idx, "label": meta["label"]})
+            dynamic_eval_meta.append({
+                "id": eval_id,
+                "label": meta["label"],
+                "icon": meta["icon"],
+                "ratio": 100 # 기본값
+            })
 
     # 필수 컬럼(학번, 이름)이 감지되지 않으면 에러
     if col["student_id"] is None or col["name"] is None:
@@ -193,10 +233,6 @@ def load_excel():
                 return row[idx]
             return default
 
-        quiz = safe_float(get_val("quiz_score"))
-        attendance = safe_float(get_val("attendance"))
-        midterm = safe_float(get_val("midterm"))
-        final = safe_float(get_val("final"))
         total = safe_float(get_val("total"))
         rank_val = get_val("rank")
         grade = get_val("grade") or ""
@@ -217,10 +253,6 @@ def load_excel():
             "student_id": sid,
             "name": student_name,
             "phone_last4": phone_last4,
-            "quiz_score": quiz,
-            "attendance_score": attendance,
-            "midterm_score": midterm,
-            "final_score": final,
             "total_score": total,
             "rank": rank_val,
             "grade": grade,
@@ -228,17 +260,19 @@ def load_excel():
             "remark": remark,
         }
 
+        for ev in dynamic_evals:
+            val = None
+            if ev["col_idx"] < len(row):
+                val = safe_float(row[ev["col_idx"]])
+            student[ev["id"] + "_score"] = val
+
         new_students[sid] = student
 
         # 분반별 점수 집계
         if class_num not in class_scores:
-            class_scores[class_num] = {
-                "quiz_score": [],
-                "attendance_score": [],
-                "midterm_score": [],
-                "final_score": [],
-                "total_score": [],
-            }
+            class_scores[class_num] = { "total_score": [] }
+            for ev in dynamic_evals:
+                class_scores[class_num][ev["id"] + "_score"] = []
 
         for field in class_scores[class_num]:
             val = student[field]
@@ -312,7 +346,10 @@ def _require_admin() -> tuple[bool, str | None]:
 
 
 def _client_ip() -> str:
-    # Flask dev server 환경에서 단순히 remote_addr 사용 (역방향 프록시 사용 안 함 전제)
+    # X-Forwarded-For 헤더를 최우선으로 확인 (Nginx 등 프록시 환경 대응)
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
     return request.remote_addr or "unknown"
 
 
@@ -414,8 +451,8 @@ def save_public_config():
 # ──────────────────────────────────────────────
 @app.route("/")
 def index():
-    """메인 페이지 서빙"""
-    return render_template("index.html")
+    """메인 페이지 서빙 (docs/index.html을 직접 서비스)"""
+    return send_from_directory("docs", "index.html")
 
 
 @app.route("/docs/<path:filename>")
@@ -438,7 +475,7 @@ def admin_redirect():
 def get_score():
     """
     학생 성적 조회 API
-    요청: { "student_id": "20220034", "phone_last4": "5169" }
+    요청: { "student_id": "20220034", "phone_last4": "5169", "access_code": "123456" }
     """
     # 1) Rate limit (IP 기준)
     if _rate_limited(_client_ip()):
@@ -453,9 +490,10 @@ def get_score():
 
     raw_id = str(data.get("student_id", "")).strip()
     phone_last4 = str(data.get("phone_last4", "")).strip()
+    access_code = str(data.get("access_code", "")).strip()
 
-    if not raw_id or not phone_last4:
-        return jsonify({"error": "학번과 전화번호 뒷자리를 모두 입력해 주세요."}), 400
+    if not raw_id or not phone_last4 or not access_code:
+        return jsonify({"error": "학번, 전화번호 뒷자리, 접속 비밀번호를 모두 입력해 주세요."}), 400
 
     if len(raw_id) > MAX_STUDENT_ID_LEN or not raw_id.isdigit():
         return jsonify({"error": "학번은 숫자만 입력 가능합니다."}), 400
@@ -463,10 +501,20 @@ def get_score():
     if not phone_last4.isdigit() or len(phone_last4) != 4:
         return jsonify({"error": "전화번호 뒷자리 4자리를 정확히 입력해 주세요."}), 400
 
+    if not access_code.isdigit() or len(access_code) != 6:
+        return jsonify({"error": "접속 비밀번호 6자리 숫자를 정확히 입력해 주세요."}), 400
+
+    # 3) 접속 비밀번호(access_code) 설정 값과 대조 검증 (설정되어 있는 경우에만 검증)
+    expected_code = _get_configured_access_code()
+    if expected_code and not hmac.compare_digest(access_code, expected_code):
+        return jsonify({
+            "error": "일치하는 정보를 찾을 수 없습니다.\n비밀번호를 다시 확인해 주세요."
+        }), 404
+
     sid = int(raw_id)
     student = students.get(sid)
 
-    # 3) 학번/전화번호 검증을 한 묶음으로 처리 (계정 열거 방지)
+    # 4) 학번/전화번호 검증을 한 묶음으로 처리 (계정 열거 방지)
     if not student or not hmac.compare_digest(student["phone_last4"], phone_last4):
         return jsonify({
             "error": "일치하는 정보를 찾을 수 없습니다.\n학번과 전화번호를 다시 확인해 주세요."
@@ -482,26 +530,28 @@ def get_score():
     rank_val = student["rank"]
     rank_str = f"{rank_val} / {count}" if rank_val is not None else "- / -"
 
+    student_res = {
+        "department": student["department"],
+        "class_num": cn,
+        "student_id_masked": mask_student_id(sid),
+        "name_masked": mask_name(student["name"]),
+        "total_score": student["total_score"],
+        "rank": rank_str,
+        "grade": student["grade"],
+        "absences": student["absences"],
+        "remark": student["remark"],
+    }
+    
+    # 동적 평가항목 점수 추가
+    for k in student.keys():
+        if k.endswith("_score") and k != "total_score":
+            student_res[k] = student[k]
+
     response = {
-        "student": {
-            "department": student["department"],
-            "class_num": cn,
-            "student_id_masked": mask_student_id(sid),
-            "name_masked": mask_name(student["name"]),
-            "quiz_score": student["quiz_score"],
-            "attendance_score": student["attendance_score"],
-            "midterm_score": student["midterm_score"],
-            "final_score": student["final_score"],
-            "total_score": student["total_score"],
-            "rank": rank_str,
-            "grade": student["grade"],
-            "absences": student["absences"],
-            "remark": student["remark"],
-        },
-        "class_avg": {k: avg.get(k) for k in
-                      ("quiz_score", "attendance_score", "midterm_score", "final_score", "total_score")},
-        "class_max": {k: mx.get(k) for k in
-                      ("quiz_score", "attendance_score", "midterm_score", "final_score", "total_score")},
+        "student": student_res,
+        "evaluation": dynamic_eval_meta,
+        "class_avg": avg,
+        "class_max": mx,
         "class_count": count,
     }
 

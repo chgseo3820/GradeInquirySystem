@@ -427,14 +427,21 @@
 
         const studentId = studentIdInput.value.trim();
         const phoneLast4 = phoneLast4Input.value.trim();
+        const studentAccessCodeInput = document.getElementById('student-access-code');
+        const accessCode = studentAccessCodeInput ? studentAccessCodeInput.value.trim() : '';
 
-        if (!studentId || !phoneLast4) {
-            showError('학번과 전화번호 뒷자리를 모두 입력해 주세요.');
+        if (!studentId || !phoneLast4 || !accessCode) {
+            showError('학번, 전화번호 뒷자리, 접속 비밀번호를 모두 입력해 주세요.');
             return;
         }
 
         if (phoneLast4.length !== 4) {
             showError('전화번호 뒷자리 4자리를 정확히 입력해 주세요.');
+            return;
+        }
+
+        if (accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
+            showError('접속 비밀번호 6자리 숫자를 정확히 입력해 주세요.');
             return;
         }
 
@@ -448,7 +455,7 @@
                 return;
             }
 
-            const hashKey = await sha256(`${studentId}|${phoneLast4}`);
+            const hashKey = await sha256(`${studentId}|${phoneLast4}|${accessCode}`);
 
             // 모든 데이터 소스에서 순차 검색
             let foundData = null;

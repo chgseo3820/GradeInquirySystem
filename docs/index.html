@@ -26,7 +26,7 @@
         <!-- ═══════════════════════════════════
              TOP BAR
              ═══════════════════════════════════ -->
-        <header class="top-bar" id="top-bar">
+        <header class="top-bar" id="top-bar" style="display:none;">
             <div class="top-bar-title" id="top-bar-title">📊 성적 관리 시스템</div>
             <div class="top-bar-prof" id="top-bar-prof"></div>
         </header>
@@ -64,7 +64,14 @@
             <!-- 새로 추가된 정보 메시지 -->
             <div class="mode-info-box staggered-item" style="--delay: 0.4s">
                 <div class="info-badge">💡 Notice</div>
-                <p>이 시스템은 서창갑교수의 개인 창작물이며 계속 버전업하고 있습니다.<br>교수님들께서는 학생들과는 다른 경로이용으로 부득이 <strong>회원가입의 절차</strong>를 마련하였습니다.</p>
+                <p>성적을 안전하고 편리하게 조회하고 관리할 수 있는 통합 시스템입니다.<br>공정한 성적 평가를 제공하기 위해 최선을 다하고 있습니다.</p>
+            </div>
+
+            <!-- 📘 사용 매뉴얼 버튼 -->
+            <div class="manual-trigger-container staggered-item" style="--delay: 0.45s; margin-bottom: 24px; display: flex; justify-content: center; width: 100%;">
+                <button type="button" id="btn-open-manual" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: 30px; padding: 10px 24px; font-size: 13px; color: #38bdf8; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 8px;">
+                    <span>📘 시스템 사용 매뉴얼 (교수자·학생용)</span>
+                </button>
             </div>
 
             <!-- Footer: Ver 1.1 -->
@@ -127,7 +134,23 @@
                             >
                         </div>
 
-                        <button type="submit" id="submit-btn" class="btn-primary">
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label class="form-label" for="student-access-code">🔒 접속 비밀번호 (6자리)</label>
+                            <input
+                                type="password"
+                                id="student-access-code"
+                                class="form-input"
+                                placeholder="교수님이 알려주신 6자리 보안코드를 입력하세요"
+                                inputmode="numeric"
+                                maxlength="6"
+                                required
+                            >
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+                                ℹ️ 교수님께서 수업시간, LMS, 카톡, 문자, 이메일 중에서 알려주신 접속 비밀번호 6자리를 입력하세요.
+                            </div>
+                        </div>
+
+                        <button type="submit" id="submit-btn" class="btn-primary" style="margin-top: 20px;">
                             <span class="btn-text">성적 조회</span>
                             <span class="spinner"></span>
                         </button>
@@ -248,6 +271,10 @@
                 <div class="auth-card" id="admin-login-card">
                     <div class="auth-card-title">🔐 교수자 로그인</div>
                     <div class="auth-card-subtitle">성적 관리를 위해 로그인해 주세요</div>
+                    <div class="prof-notice-box" style="margin-top: 12px; margin-bottom: 16px; padding: 10px 12px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; text-align: left;">
+                        <span style="font-weight: 700; color: #f59e0b; display: block; margin-bottom: 2px;">💡 교수자 계정 관련 안내</span>
+                        이 시스템은 서창갑교수의 개인 창작물이며 계속 버전업하고 있습니다. 교수님들께서는 학생들과는 다른 경로 이용을 위해 부득이 회원가입의 절차가 필요합니다.
+                    </div>
                     <form id="admin-login-form" autocomplete="off">
                         <div class="wizard-form-group">
                             <label for="admin-login-email">이메일 주소</label>
@@ -318,6 +345,10 @@
                 <div class="auth-card" id="admin-register-card" style="display:none;">
                     <div class="auth-card-title">📝 교수 회원가입 신청</div>
                     <div class="auth-card-subtitle">회원가입 정보 입력 후 승인 요청을 전송합니다</div>
+                    <div class="prof-notice-box" style="margin-top: 12px; margin-bottom: 16px; padding: 10px 12px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; text-align: left;">
+                        <span style="font-weight: 700; color: #f59e0b; display: block; margin-bottom: 2px;">💡 교수자 계정 관련 안내</span>
+                        이 시스템은 서창갑교수의 개인 창작물이며 계속 버전업하고 있습니다. 교수님들께서는 학생들과는 다른 경로 이용을 위해 부득이 회원가입의 절차가 필요합니다.
+                    </div>
                     <form id="admin-register-form" autocomplete="off">
                         <div class="wizard-form-group">
                             <label for="reg-name">이름 <span style="color:#f87171;">*</span></label>
@@ -696,13 +727,30 @@
                 <div class="wizard-panel" id="wizard-step-3" style="display:none;">
                     <div class="wizard-card">
                         <div class="wizard-card-title">📊 평가 기준</div>
-                        <div class="wizard-card-subtitle">평가 항목을 선택하고 비율을 설정합니다 (합계 100%)</div>
+                        <div class="wizard-card-subtitle">평가 항목을 설정하고 반영 비율을 입력합니다 (합계 100%)</div>
 
                         <div class="eval-criteria-list" id="eval-criteria-list">
                             <!-- JS가 동적으로 채움 -->
                         </div>
 
-                        <div class="eval-total">
+                        <!-- ➕ 새 평가 항목 직접 추가 필드 -->
+                        <div class="add-eval-item-box" style="margin-top: 24px; padding: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); text-align: left; width: 100%;">
+                            <div style="font-weight: 600; font-size: 13px; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                                <span>➕ 새 평가 항목 추가</span>
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-bottom: 12px; width: 100%;">
+                                <input type="text" id="new-eval-icon" placeholder="아이콘" value="📊" style="width: 60px; padding: 8px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; text-align: center; font-size: 16px; outline: none;">
+                                <input type="text" id="new-eval-label" placeholder="항목명 (예: 프로젝트, 발표)" style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 13px; outline: none;">
+                                <button type="button" id="btn-add-eval-item" style="background: linear-gradient(135deg, #0ea5e9, #2563eb); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin: 0;">추가</button>
+                            </div>
+                            <!-- 💡 예시 항목 퀵 버튼 (Chips) -->
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">💡 예시 항목 (클릭 시 자동 입력):</div>
+                            <div class="eval-preset-chips" id="eval-preset-chips" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: center;">
+                                <!-- JS가 동적으로 채움 -->
+                            </div>
+                        </div>
+
+                        <div class="eval-total" style="margin-top: 24px;">
                             <div class="eval-total-header">
                                 <span class="eval-total-label">비율 합계</span>
                                 <span class="eval-total-value" id="eval-total-value">0%</span>
@@ -763,6 +811,15 @@
 
                             <div class="complete-summary" id="complete-summary"></div>
 
+                            <!-- 🔑 접속 비밀번호 설정 필드 (엑셀 업로드 전 필수 지정) -->
+                            <div class="course-selector" style="margin-top: 15px; margin-bottom: 20px; text-align: left; width: 100%;">
+                                <label for="publish-access-code" style="font-weight: 600; color: var(--text-main); display: block; margin-bottom: 8px;">🔑 성적조회 접속 비밀번호 (6자리 숫자)</label>
+                                <input type="password" id="publish-access-code" class="wizard-select" placeholder="6자리 비밀번호 입력 (예: 123456)" maxlength="6" inputmode="numeric" required style="width: 100%; background: rgba(15,23,42,0.6); color: white; border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px 14px; font-size: 14px; outline: none;">
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 6px; line-height: 1.4;">
+                                    💡 이 비밀번호는 데이터 해싱 및 조회 보안 키로 사용됩니다. 설정 후 수업시간, LMS, 카톡, 문자, 이메일 등으로 직접 알려주셔야 학생들이 성적을 조회할 수 있습니다.
+                                </div>
+                            </div>
+
                             <button class="btn-download" id="btn-download-excel">
                                 📥 샘플 Excel 다운로드
                             </button>
@@ -803,15 +860,22 @@
                                         <div class="publish-form">
                                             <div class="publish-fields-row">
                                                 <div class="publish-field">
-                                                <label for="publish-start-datetime">공시 시작 일시</label>
-                                                <input type="datetime-local" id="publish-start-datetime" class="publish-input">
+                                                    <label for="publish-start-datetime">공시 시작 일시</label>
+                                                    <input type="datetime-local" id="publish-start-datetime" class="publish-input">
+                                                </div>
+                                                <div class="publish-field">
+                                                    <label for="publish-end-datetime">공시 종료 일시</label>
+                                                    <input type="datetime-local" id="publish-end-datetime" class="publish-input">
+                                                </div>
                                             </div>
-                                            <div class="publish-field">
-                                                <label for="publish-end-datetime">공시 종료 일시</label>
-                                                <input type="datetime-local" id="publish-end-datetime" class="publish-input">
+
+                                            <div id="publish-access-code-display-row" class="publish-fields-row" style="margin-top: 15px; display: none; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); align-items: center; justify-content: space-between; flex-direction: row;">
+                                                <div style="font-size: 13px; color: var(--text-secondary);">
+                                                    🔑 설정된 접속 비밀번호: <span id="publish-access-code-masked" style="font-weight: 700; color: #f59e0b; font-size: 15px; margin-left: 8px; letter-spacing: 2px;">* * * * * *</span>
+                                                </div>
+                                                <button type="button" id="btn-view-access-code" class="btn-reset-pw" style="padding: 6px 12px; font-size: 12px; margin: 0;">보기 👁</button>
                                             </div>
-                                        </div>
-                                            <div class="publish-actions">
+                                            <div class="publish-actions" style="margin-top: 20px;">
                                                 <button class="pipe-btn active" id="btn-publish" style="padding:10px 24px;">📢 공시하기</button>
                                                 <button class="pipe-btn" id="btn-unpublish" style="padding:10px 24px;opacity:0.6;cursor:pointer;">🚫 공시 취소</button>
                                             </div>
@@ -833,8 +897,134 @@
 
     </div>
 
+    <!-- ═══════════════════════════════════
+         MANUAL DRAWER
+         ═══════════════════════════════════ -->
+    <div id="manual-drawer-backdrop" class="slide-drawer-backdrop" style="display:none;"></div>
+    <div id="manual-drawer" class="slide-drawer manual-drawer-wide" style="display:none;">
+        <div class="drawer-header">
+            <h3>📘 ScoreQuery 사용 매뉴얼</h3>
+            <button id="btn-close-manual" class="btn-close-drawer">&times;</button>
+        </div>
+        <div class="drawer-body" style="padding: 24px; overflow-y: auto; height: calc(100% - 70px); box-sizing: border-box;">
+            <!-- 매뉴얼 탭 버튼 -->
+            <div class="manual-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">
+                <button type="button" class="manual-tab-btn active" data-role="prof" style="flex: 1; padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">👨‍🏫 교수자용 매뉴얼</button>
+                <button type="button" class="manual-tab-btn" data-role="student" style="flex: 1; padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-secondary); font-weight: 600; cursor: pointer; transition: all 0.2s;">🎓 학생용 매뉴얼</button>
+            </div>
+
+            <!-- 버전 선택 (요약 vs 상세) -->
+            <div class="manual-version-select" style="display: flex; gap: 4px; justify-content: center; margin-bottom: 20px; background: rgba(15,23,42,0.4); padding: 4px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                <button type="button" class="version-tab-btn active" data-version="summary" style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.1); border: none; border-radius: 6px; color: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📄 요약 버전</button>
+                <button type="button" class="version-tab-btn" data-version="detailed" style="flex: 1; padding: 8px 12px; background: transparent; border: none; border-radius: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📖 상세 버전</button>
+            </div>
+
+            <!-- 매뉴얼 본문 영역 -->
+            <div class="manual-content-container" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); border-radius: 12px; padding: 20px; text-align: left; font-size: 13.5px; line-height: 1.6; color: var(--text-primary); min-height: 250px;">
+                <!-- 교수자 요약 매뉴얼 -->
+                <div id="manual-prof-summary" class="manual-page">
+                    <h4 style="color: #f59e0b; margin-top: 0; font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 6px;">👨‍🏫 교수자 요약 매뉴얼 (4단계 빠른 요약)</h4>
+                    <ol style="padding-left: 20px; margin-bottom: 0;">
+                        <li style="margin-bottom: 16px;"><strong>계정 등록 및 승인</strong><br>
+                            '교수 모드' 선택 후 회원가입 신청을 진행합니다. 관리자(마스터) 승인 시 이메일로 알림이 발송되며 로그인이 가능해집니다.
+                        </li>
+                        <li style="margin-bottom: 16px;"><strong>과목 및 평가 기준 설정</strong><br>
+                            년도, 학기, 과목명을 지정하고 평가 비중(합계 100%)을 정합니다. 예시 칩(Chips)을 클릭하면 빠르게 요소를 구성할 수 있습니다.
+                        </li>
+                        <li style="margin-bottom: 16px;"><strong>Excel 양식 작성 및 업로드</strong><br>
+                            생성된 맞춤형 Excel 템플릿(.xlsx)을 다운로드하여 학생별 성적을 기입한 후 드래그앤드롭하여 브라우저 로컬 업로드를 완료합니다.
+                        </li>
+                        <li style="margin-bottom: 16px;"><strong>보안 패스코드 설정 및 공시</strong><br>
+                            학생 조회용 6자리 보안 비밀번호와 공시 기한을 설정하고 '공시하기'를 실행하면 안전하게 암호화(AES-256-GCM)되어 배포가 완료됩니다.
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- 교수자 상세 매뉴얼 -->
+                <div id="manual-prof-detailed" class="manual-page" style="display:none;">
+                    <h4 style="color: #f59e0b; margin-top: 0; font-size: 15px; font-weight: 700; margin-bottom: 16px;">👨‍🏫 교수자 상세 매뉴얼</h4>
+                    <p style="margin-bottom: 16px;">ScoreQuery는 서버 없이 정적 배포(GitHub Pages)되면서도, 구글 앱스 스크립트(GAS)와 연동해 실시간 가입 승인 및 고성능 암호화를 지원하는 성적 피드백 솔루션입니다.</p>
+                    
+                    <h5 style="color: #38bdf8; margin-top: 20px; margin-bottom: 8px; font-size: 13.5px; font-weight: 600;">1단계: 계정 가입 및 마스터 승인</h5>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">교수자 최초 접속 시 가입 신청서(이름, 이메일, 대학/학과, 패스워드, 연락처)를 전송하면 원격 구글 Sheets DB에 적재되며, 마스터 계정이 검토 후 승인을 처리하면 승인 완료 메일과 함께 즉시 대시보드 권한을 얻습니다.</p>
+                    
+                    <h5 style="color: #38bdf8; margin-top: 20px; margin-bottom: 8px; font-size: 13.5px; font-weight: 600;">2단계: 4단계 설정 마법사 및 Excel 성적 입력</h5>
+                    <ul style="padding-left: 20px; color: var(--text-secondary); margin-bottom: 12px;">
+                        <li style="margin-bottom: 8px;"><strong>1~2단계</strong>: 교수 개인 정보 및 강의 과목명(년도, 학기)을 설정합니다.</li>
+                        <li style="margin-bottom: 8px;"><strong>3단계</strong>: 평가 가중치 비율(합계 100%)을 지정합니다. (중간/기말, 출석 등 항목을 ❌로 삭제하고 ➕ 버튼 또는 퀵 Chips로 직접 자유롭게 추가 가능)</li>
+                        <li style="margin-bottom: 8px;"><strong>4단계</strong>: 설정된 평가 항목 컬럼에 맞춰 생성된 전용 Excel 템플릿(.xlsx)을 다운로드하여 로컬에서 세부 성적을 입력합니다.</li>
+                    </ul>
+
+                    <h5 style="color: #38bdf8; margin-top: 20px; margin-bottom: 8px; font-size: 13.5px; font-weight: 600;">3단계: 프라이버시 필터링 및 로컬 빌드</h5>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">Excel 성적표를 드래그앤드롭하여 업로드하면 브라우저 내에서 <strong>이름 첫 글자 외 마스킹(예: 홍*동)</strong> 및 <strong>학번 앞 4자리 외 마스킹</strong> 처리가 즉각 수행됩니다.</p>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">동시에 학생의 학번 및 전화번호 뒷자리는 결합되어 <strong>SHA-256 단방향 해시 키</strong>로 일원화되므로, 원본 개인정보는 서버와 클라이언트에 평문 상태로 보관되지 않아 완벽한 개인정보 유출 방지가 성립됩니다.</p>
+
+                    <h5 style="color: #38bdf8; margin-top: 20px; margin-bottom: 8px; font-size: 13.5px; font-weight: 600;">4단계: 3중 보안 패스코드 설정 및 배포</h5>
+                    <p style="color: var(--text-secondary);">엑셀 파싱이 완료되면 성적조회에 연동할 **6자리 접속 비밀번호**를 직접 입력합니다. 이후 공시 일정을 입력하고 배포하면 암호화된 `data.enc.json` 데이터가 생성되며 공시가 활성화됩니다.</p>
+                </div>
+
+                <!-- 학생 요약 매뉴얼 -->
+                <div id="manual-student-summary" class="manual-page" style="display:none;">
+                    <h4 style="color: #3b82f6; margin-top: 0; font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 6px;">🎓 학생용 요약 매뉴얼 (3단계 빠른 요약)</h4>
+                    <ol style="padding-left: 20px; margin-bottom: 0;">
+                        <li style="margin-bottom: 16px;"><strong>과목 선택</strong><br>
+                            '학생 모드' 진입 후, 본인이 수강하여 성적을 확인하고자 하는 과목명을 선택합니다.
+                        </li>
+                        <li style="margin-bottom: 16px;"><strong>3중 인증 정보 입력</strong><br>
+                            본인의 <strong>학번(8자리 이상)</strong>, <strong>휴대폰 번호 뒷자리(4자리)</strong> 및 담당 교수님께서 직접 공지(수업시간, LMS, 이메일, 문자 등)해 주신 <strong>6자리 접속 비밀번호</strong>를 기입합니다.
+                        </li>
+                        <li style="margin-bottom: 16px;"><strong>성적 시각화 대시보드 리포팅 확인</strong><br>
+                            인증에 성공하면 본인의 종합 성적 평점/석차 정보 카드와 평가 항목별 득점 비교 방사형(Radar) 레이더 차트가 포함된 성적표를 확인합니다.
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- 학생 상세 매뉴얼 -->
+                <div id="manual-student-detailed" class="manual-page" style="display:none;">
+                    <h4 style="color: #3b82f6; margin-top: 0; font-size: 15px; font-weight: 700; margin-bottom: 16px;">🎓 학생용 상세 매뉴얼</h4>
+                    <p style="margin-bottom: 16px;">학생 모드는 가입이나 추가적인 아이디 생성 등의 절차 없이, 보안 암호 연산 대조를 거쳐 개인 성취 정보 분석을 피드백해 주는 화면입니다.</p>
+
+                    <h5 style="color: #38bdf8; margin-top: 20px; margin-bottom: 8px; font-size: 13.5px; font-weight: 600;">1단계: 과목명 선택 및 3중 보안 검증</h5>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">수강 과목을 선택하면 학번, 전화번호 뒷자리 4자리 및 <strong>6자리 접속 비밀번호</strong> 입력 필드가 나타납니다. 접속 비밀번호는 다른 학생의 도용 및 무차별 대입을 완벽히 방어하기 위해 교수자가 개별 통보한 6자리 비밀코드입니다.</p>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">조회 시도 중 5회 비밀번호를 연속 실패하면 시스템 남용 방지를 위해 30초간 해당 학번의 조회가 일시 잠금됩니다. 모든 정보는 일방향 해시 키 변환(SHA-256)을 경유하여 확인되며 학생의 번호는 서버에 전혀 남지 않습니다.</p>
+
+                    <h5 style="color: #38bdf8; margin-top: 20px; margin-bottom: 8px; font-size: 13.5px; font-weight: 600;">2단계: 레이더 차트 및 석차 종합 분석 확인</h5>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">보안 해시 키 대조 완료 후, 브라우저 로컬 복호화를 수행해 다음과 같은 맞춤형 성적 정보 대시보드가 로드됩니다.</p>
+                    <ul style="padding-left: 20px; color: var(--text-secondary); margin-bottom: 0;">
+                        <li style="margin-bottom: 8px;"><strong>종합 평점 및 분반 석차</strong>: 최종 학업 평가 결과(A+, B0 등)와 해당 분반 내 전체 수강생 대비 본인의 실제 성적 석차(예: 4등 / 38명)를 시각화합니다.</li>
+                        <li style="margin-bottom: 8px;"><strong>항목별 점수 편차 카드</strong>: 과제, 기말고사 등 각 평가 영역의 획득 점수와 함께 전체 평균 대비 본인의 강점과 취약점(예: 평균 대비 +15점)을 카드로 표시합니다.</li>
+                        <li style="margin-bottom: 8px;"><strong>방사형 Radar 그래프</strong>: 본인의 항목별 득점, 분반 평균 득점, 분반 내 최고 점수 3가지를 다각적으로 매핑한 방사형 레이더 그래프를 제공해 종합적인 역량 균형도를 자가 분석할 수 있도록 돕습니다.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- App Scripts -->
     <script src="static/app.js"></script>
     <script src="static/admin.js?v=2"></script>
+
+    <!-- 교수자 2차 인증 모달 -->
+    <div id="admin-verify-modal" class="modal-overlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="auth-card" style="width: 90%; max-width: 400px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);">
+            <div class="auth-card-title" style="font-size: 1.1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                🔒 보안 확인
+            </div>
+            <div class="auth-card-subtitle" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; text-align: left;">
+                성적 조회 비밀번호(6자리)를 확인하시려면,<br>현재 로그인한 교수자 비밀번호를 입력해 주세요.
+            </div>
+            <form id="admin-verify-pw-form" autocomplete="off">
+                <div class="wizard-form-group" style="text-align: left;">
+                    <label for="admin-verify-pw">교수 비밀번호</label>
+                    <input type="password" id="admin-verify-pw" placeholder="교수 비밀번호 입력" required style="width:100%; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; outline: none;">
+                </div>
+                <div id="admin-verify-error" style="display:none; color:#f87171; font-size:13px; margin-top:8px; text-align: left;">비밀번호가 올바르지 않습니다.</div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="button" id="btn-admin-verify-cancel" class="btn-back" style="flex: 1; margin: 0; padding: 10px 0;">취소</button>
+                    <button type="submit" class="btn-next" style="flex: 1; margin: 0; padding: 10px 0;">확인</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

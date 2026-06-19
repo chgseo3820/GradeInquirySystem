@@ -79,6 +79,7 @@
     try {
         initYearOptions();
         initEvalCriteria();
+        initEvalAddSection();
         initAuth();
         bindEvents();
         console.log('[ScoreQuery Admin] Initialized successfully');
@@ -98,6 +99,7 @@
         adminSection.classList.remove('visible');
         loginSection.style.display = 'none';
         document.getElementById('result-section').classList.remove('visible');
+        if (topBar) topBar.style.display = 'none';
         topBarTitle.textContent = '📊 성적 관리 시스템';
         topBarProf.textContent = '';
         currentStep = 1;
@@ -107,6 +109,7 @@
     function enterStudentMode() {
         modeSection.style.display = 'none';
         loginSection.style.display = '';
+        if (topBar) topBar.style.display = 'flex';
 
         // localStorage에서 저장된 설정 로드
         const saved = loadConfig();
@@ -124,6 +127,7 @@
     function enterAdminMode() {
         modeSection.style.display = 'none';
         adminSection.classList.add('visible');
+        if (topBar) topBar.style.display = 'flex';
         topBarTitle.textContent = '⚙️ 교수 모드 — 과목 설정';
         topBarProf.textContent = '';
         // 세션 로드 체크 후 분기
@@ -873,21 +877,6 @@
             return false;
         }
 
-        // 선택된 항목 수집
-        adminConfig.evaluation = [];
-        EVAL_ITEMS.forEach(item => {
-            const cb = document.getElementById(`eval-cb-${item.id}`);
-            const input = document.getElementById(`eval-ratio-${item.id}`);
-            if (cb.checked) {
-                adminConfig.evaluation.push({
-                    id: item.id,
-                    label: item.label,
-                    icon: item.icon,
-                    ratio: parseInt(input.value) || 0,
-                });
-            }
-        });
-
         // 현재 과목+평가를 courses 배열에 저장
         const existing = adminConfig.courses.findIndex(c =>
             c.name === adminConfig.course.name &&
@@ -968,12 +957,7 @@
         document.getElementById('course-name').value = '';
 
         // 평가 기준 초기화
-        EVAL_ITEMS.forEach(item => {
-            const cb = document.getElementById(`eval-cb-${item.id}`);
-            const input = document.getElementById(`eval-ratio-${item.id}`);
-            if (cb) cb.checked = false;
-            if (input) input.value = '';
-        });
+        initEvalCriteria();
         updateEvalTotal();
 
         // Step 2로 이동
@@ -1027,52 +1011,124 @@
     // ──────────────────────────────────────────────
     function initEvalCriteria() {
         const container = document.getElementById('eval-criteria-list');
+        if (!container) return;
         container.innerHTML = '';
 
-        EVAL_ITEMS.forEach(item => {
+        // 신규 진입 시 디폴트 항목 복제 가이드 제공
+        if (!adminConfig.evaluation || adminConfig.evaluation.length === 0) {
+            adminConfig.evaluation = EVAL_ITEMS.map(item => ({
+                id: item.id,
+                label: item.label,
+                icon: item.icon,
+                ratio: 0
+            }));
+        }
+
+        adminConfig.evaluation.forEach((item, index) => {
             const div = document.createElement('div');
-            div.className = 'eval-item';
-            div.id = `eval-item-${item.id}`;
+            div.className = 'eval-item selected';
             div.innerHTML = `
-                <input type="checkbox" id="eval-cb-${item.id}">
-                <span class="eval-item-icon">${item.icon}</span>
-                <label class="eval-item-label" for="eval-cb-${item.id}">${item.label}</label>
-                <div class="eval-item-ratio">
-                    <input type="number" id="eval-ratio-${item.id}" min="0" max="100" value="" placeholder="0" disabled>
-                    <span>%</span>
+                <span class="eval-item-icon">${item.icon || '📊'}</span>
+                <span class="eval-item-label" style="flex: 1; text-align: left; font-weight: 600; margin-left: 8px;">${item.label}</span>
+                <div class="eval-item-ratio" style="display: flex; align-items: center; gap: 4px;">
+                    <input type="number" id="eval-ratio-${index}" min="0" max="100" value="${item.ratio || ''}" placeholder="0" style="width: 70px; padding: 8px; border: 1px solid var(--border-glass); border-radius: 6px; background: rgba(15,23,42,0.4); color: white; text-align: center; font-size: 14px; outline: none;">
+                    <span style="font-size: 14px; font-weight: 500;">%</span>
                 </div>
+                <button type="button" class="btn-delete-eval" data-index="${index}" style="background: transparent; border: none; color: #f87171; cursor: pointer; margin-left: 16px; font-size: 16px; display: flex; align-items: center; justify-content: center; padding: 4px;" title="항목 삭제">❌</button>
             `;
             container.appendChild(div);
 
-            // Checkbox toggle
-            const cb = div.querySelector(`#eval-cb-${item.id}`);
-            const ratioInput = div.querySelector(`#eval-ratio-${item.id}`);
-
-            cb.addEventListener('change', () => {
-                ratioInput.disabled = !cb.checked;
-                div.classList.toggle('selected', cb.checked);
-                if (!cb.checked) {
-                    ratioInput.value = '';
-                }
+            const ratioInput = div.querySelector(`#eval-ratio-${index}`);
+            ratioInput.addEventListener('input', () => {
+                item.ratio = parseInt(ratioInput.value) || 0;
                 updateEvalTotal();
             });
 
-            ratioInput.addEventListener('input', () => {
+            const delBtn = div.querySelector('.btn-delete-eval');
+            delBtn.addEventListener('click', () => {
+                adminConfig.evaluation.splice(index, 1);
+                initEvalCriteria();
                 updateEvalTotal();
             });
         });
     }
 
     function getEvalTotal() {
-        let total = 0;
-        EVAL_ITEMS.forEach(item => {
-            const cb = document.getElementById(`eval-cb-${item.id}`);
-            const input = document.getElementById(`eval-ratio-${item.id}`);
-            if (cb.checked) {
-                total += parseInt(input.value) || 0;
-            }
-        });
-        return total;
+        if (!adminConfig.evaluation) return 0;
+        return adminConfig.evaluation.reduce((sum, item) => sum + (item.ratio || 0), 0);
+    }
+
+    function initEvalAddSection() {
+        const presetContainer = document.getElementById('eval-preset-chips');
+        const iconInput = document.getElementById('new-eval-icon');
+        const labelInput = document.getElementById('new-eval-label');
+        const btnAdd = document.getElementById('btn-add-eval-item');
+
+        if (presetContainer) {
+            presetContainer.innerHTML = '';
+            EVAL_ITEMS.forEach(item => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'preset-chip';
+                chip.style.cssText = 'background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 20px; padding: 6px 14px; font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px;';
+                chip.innerHTML = `<span>${item.icon}</span><span>${item.label}</span>`;
+                
+                chip.addEventListener('mouseenter', () => {
+                    chip.style.background = 'rgba(255,255,255,0.08)';
+                    chip.style.borderColor = 'rgba(255,255,255,0.2)';
+                });
+                chip.addEventListener('mouseleave', () => {
+                    chip.style.background = 'rgba(255,255,255,0.04)';
+                    chip.style.borderColor = 'var(--border-glass)';
+                });
+
+                chip.addEventListener('click', () => {
+                    if (iconInput) iconInput.value = item.icon;
+                    if (labelInput) {
+                        labelInput.value = item.label;
+                        labelInput.focus();
+                    }
+                });
+                presetContainer.appendChild(chip);
+            });
+        }
+
+        if (btnAdd) {
+            // 중복 바인딩 방지를 위해 복제 후 교체
+            const newBtn = btnAdd.cloneNode(true);
+            btnAdd.parentNode.replaceChild(newBtn, btnAdd);
+            newBtn.addEventListener('click', () => {
+                const icon = iconInput ? iconInput.value.trim() : '📊';
+                const label = labelInput ? labelInput.value.trim() : '';
+
+                if (!label) {
+                    alert('평가 항목명을 입력해 주세요.');
+                    return;
+                }
+
+                // 중복 체크
+                const exists = adminConfig.evaluation.find(e => e.label === label);
+                if (exists) {
+                    alert('이미 존재하는 평가 항목입니다.');
+                    return;
+                }
+
+                const newId = 'custom_' + Date.now();
+                adminConfig.evaluation.push({
+                    id: newId,
+                    label: label,
+                    icon: icon,
+                    ratio: 0
+                });
+
+                // 입력 필드 초기화
+                if (iconInput) iconInput.value = '📊';
+                if (labelInput) labelInput.value = '';
+
+                initEvalCriteria();
+                updateEvalTotal();
+            });
+        }
     }
 
     function updateEvalTotal() {
@@ -1193,6 +1249,34 @@
             endInput.value = toLocalISOString(end);
 
             updatePublishStatusDisplay(null);
+        }
+
+        // 🔑 성적조회 접속 비밀번호 마스킹 표시 처리
+        const displayRow = document.getElementById('publish-access-code-display-row');
+        const maskedEl = document.getElementById('publish-access-code-masked');
+        
+        let accessCode = '';
+        try {
+            const dataKey = getCourseDataKey(adminConfig.course);
+            const rawData = localStorage.getItem(dataKey);
+            if (rawData) {
+                const parsed = JSON.parse(rawData);
+                accessCode = parsed.access_code || '';
+            }
+        } catch (e) { /* ignore */ }
+
+        if (accessCode && displayRow && maskedEl) {
+            displayRow.style.display = 'flex';
+            maskedEl.textContent = accessCode[0] + ' * * * * *';
+            maskedEl.dataset.original = accessCode;
+            
+            // 기존 입력 필드가 있다면 해당 값 채워줌
+            const codeInput = document.getElementById('publish-access-code');
+            if (codeInput) codeInput.value = accessCode;
+        } else {
+            if (displayRow) displayRow.style.display = 'none';
+            const codeInput = document.getElementById('publish-access-code');
+            if (codeInput) codeInput.value = '';
         }
     }
 
@@ -1770,27 +1854,14 @@
             document.getElementById('course-name').value = course.name || '';
         }
 
-        // Step 3: 평가 기준
-        if (evaluation && evaluation.length > 0) {
-            initEvalCriteria(); // 초기화 후 다시 설정
-            evaluation.forEach(e => {
-                const cb = document.getElementById(`eval-cb-${e.id}`);
-                const ratio = document.getElementById(`eval-ratio-${e.id}`);
-                const item = document.getElementById(`eval-item-${e.id}`);
-                if (cb && ratio && item) {
-                    cb.checked = true;
-                    ratio.disabled = false;
-                    ratio.value = e.ratio;
-                    item.classList.add('selected');
-                }
-            });
-            updateEvalTotal();
-        }
-
         // adminConfig 업데이트
         adminConfig.professor = { ...professor };
         if (course) adminConfig.course = withCourseId(course);
         if (evaluation) adminConfig.evaluation = [...evaluation];
+
+        // Step 3: 평가 기준
+        initEvalCriteria();
+        updateEvalTotal();
 
         // courses 배열 호환성
         if (config.courses && config.courses.length > 0) {
@@ -1891,6 +1962,16 @@
     let pipelineConvertedData = null; // { rows, headers }
 
     async function processUploadedFile(file) {
+        // 🔑 접속 비밀번호 6자리 설정 검증
+        const accessCodeEl = document.getElementById('publish-access-code');
+        const accessCode = accessCodeEl ? accessCodeEl.value.trim() : '';
+        if (!accessCode || accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
+            alert('⚠️ 성적 파일을 업로드하기 전에, 먼저 6자리 성적조회 접속 비밀번호를 올바르게 입력해 주세요.');
+            showUploadStatus('error', '⚠️ 접속 비밀번호 6자리 설정 필요');
+            if (accessCodeEl) accessCodeEl.focus();
+            return;
+        }
+
         // 초기화
         document.getElementById('upload-validation').style.display = 'none';
         document.getElementById('pipeline-area').style.display = 'none';
@@ -2593,6 +2674,9 @@
         let skippedRows = 0;
         let missingScoreCells = 0;
 
+        const accessCodeEl = document.getElementById('publish-access-code');
+        const accessCode = accessCodeEl ? accessCodeEl.value.trim() : '';
+
         // 2. 학생별 성적 변환 및 검증 루프
         let rowIndex = 0;
         for (const row of rows) {
@@ -2615,7 +2699,7 @@
                 continue;
             }
 
-            const hashKey = await sha256(`${studentId}|${phoneLast4}`);
+            const hashKey = await sha256(`${studentId}|${phoneLast4}|${accessCode}`);
 
             const nameMasked = name.length <= 1 ? name : name[0] + '*'.repeat(name.length - 1);
             const idMasked = studentId.length > 4
@@ -2752,6 +2836,7 @@
                 name: adminConfig.professor.name,
                 email: adminConfig.professor.email
             },
+            access_code: accessCode,
             gas_url: localStorage.getItem('scorequery_gas_url') || '',
             evaluation: adminConfig.evaluation,
             students,
@@ -2863,19 +2948,10 @@
                 alert(`평가 비율의 합이 100%가 되어야 합니다.\n현재: ${total}%`);
                 return;
             }
-            // 현재 과목 평가 업데이트
-            adminConfig.evaluation = [];
-            EVAL_ITEMS.forEach(item => {
-                const cb = document.getElementById(`eval-cb-${item.id}`);
-                const input = document.getElementById(`eval-ratio-${item.id}`);
-                if (cb && cb.checked) {
-                    adminConfig.evaluation.push({
-                        id: item.id, label: item.label, icon: item.icon,
-                        ratio: parseInt(input.value) || 0,
-                    });
-                }
+            const courseEntry = withCourseId({
+                ...adminConfig.course,
+                evaluation: [...adminConfig.evaluation]
             });
-            const courseEntry = { ...adminConfig.course, evaluation: [...adminConfig.evaluation] };
             const existing = adminConfig.courses.findIndex(c =>
                 c.name === adminConfig.course.name &&
                 c.year === adminConfig.course.year &&
@@ -2913,6 +2989,61 @@
 
         // Upload (파이프라인 버튼은 renderPipeline에서 동적 바인딩)
         setupUpload();
+
+        // 🔒 성적조회 접속 비밀번호 2차 검증 확인 모달 바인딩
+        const btnViewCode = document.getElementById('btn-view-access-code');
+        const verifyModal = document.getElementById('admin-verify-modal');
+        const btnVerifyCancel = document.getElementById('btn-admin-verify-cancel');
+        const verifyForm = document.getElementById('admin-verify-pw-form');
+        const verifyPwInput = document.getElementById('admin-verify-pw');
+        const verifyError = document.getElementById('admin-verify-error');
+        const maskedEl = document.getElementById('publish-access-code-masked');
+
+        if (btnViewCode && verifyModal) {
+            btnViewCode.addEventListener('click', () => {
+                verifyModal.style.display = 'flex';
+                if (verifyPwInput) verifyPwInput.value = '';
+                if (verifyError) verifyError.style.display = 'none';
+                setTimeout(() => verifyPwInput.focus(), 100);
+            });
+        }
+
+        if (btnVerifyCancel && verifyModal) {
+            btnVerifyCancel.addEventListener('click', () => {
+                verifyModal.style.display = 'none';
+            });
+        }
+
+        if (verifyForm && verifyModal) {
+            verifyForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (verifyError) verifyError.style.display = 'none';
+                
+                const enteredPw = verifyPwInput.value;
+                const enteredHashed = await sha256(enteredPw);
+                
+                if (currentUser && enteredHashed === currentUser.pw) {
+                    // 검증 성공 -> 6자리 노출
+                    verifyModal.style.display = 'none';
+                    if (maskedEl && maskedEl.dataset.original) {
+                        const originalCode = maskedEl.dataset.original;
+                        maskedEl.textContent = originalCode.split('').join(' ');
+                        
+                        // 10초 후에 다시 마스킹
+                        if (maskedEl.dataset.timer) {
+                            clearTimeout(parseInt(maskedEl.dataset.timer));
+                        }
+                        const timer = setTimeout(() => {
+                            maskedEl.textContent = originalCode[0] + ' * * * * *';
+                        }, 10000);
+                        maskedEl.dataset.timer = String(timer);
+                    }
+                } else {
+                    // 검증 실패
+                    if (verifyError) verifyError.style.display = 'block';
+                }
+            });
+        }
     }
 
     // ── 마스터/교수 회원 DB 초기화 ──
@@ -3192,6 +3323,88 @@
             }
         } catch (e) {
             console.error('Session load error:', e);
+        }
+
+        bindManualDrawerEvents();
+    }
+
+    function bindManualDrawerEvents() {
+        const btnOpen = document.getElementById('btn-open-manual');
+        const btnClose = document.getElementById('btn-close-manual');
+        const backdrop = document.getElementById('manual-drawer-backdrop');
+        const drawer = document.getElementById('manual-drawer');
+
+        if (!btnOpen || !drawer || !backdrop) return;
+
+        // Open manual
+        btnOpen.addEventListener('click', () => {
+            backdrop.style.display = 'block';
+            drawer.style.display = 'flex';
+            setTimeout(() => {
+                backdrop.classList.add('active');
+                drawer.classList.add('active');
+            }, 10);
+        });
+
+        // Close manual helper
+        const closeManual = () => {
+            backdrop.classList.remove('active');
+            drawer.classList.remove('active');
+            setTimeout(() => {
+                backdrop.style.display = 'none';
+                drawer.style.display = 'none';
+            }, 300);
+        };
+
+        if (btnClose) btnClose.addEventListener('click', closeManual);
+        backdrop.addEventListener('click', closeManual);
+
+        // Tab Switching (교수자 vs 학생)
+        const tabBtns = drawer.querySelectorAll('.manual-tab-btn');
+        const pages = drawer.querySelectorAll('.manual-page');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const role = btn.dataset.role;
+
+                // Active class on tab buttons
+                tabBtns.forEach(b => {
+                    b.classList.toggle('active', b === btn);
+                    b.style.color = b === btn ? '#38bdf8' : 'var(--text-secondary)';
+                });
+
+                // Update page visibility based on role and version
+                updateManualPages();
+            });
+        });
+
+        // Version Switching (요약 vs 상세)
+        const verBtns = drawer.querySelectorAll('.version-tab-btn');
+        verBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const ver = btn.dataset.version;
+
+                // Active class on version buttons
+                verBtns.forEach(b => b.classList.toggle('active', b === btn));
+
+                // Update page visibility based on role and version
+                updateManualPages();
+            });
+        });
+
+        function updateManualPages() {
+            const activeRoleBtn = drawer.querySelector('.manual-tab-btn.active');
+            const activeVerBtn = drawer.querySelector('.version-tab-btn.active');
+            if (!activeRoleBtn || !activeVerBtn) return;
+
+            const role = activeRoleBtn.dataset.role; // 'prof' or 'student'
+            const ver = activeVerBtn.dataset.version; // 'summary' or 'detailed'
+
+            const targetId = `manual-${role}-${ver}`;
+
+            pages.forEach(page => {
+                page.style.display = page.id === targetId ? 'block' : 'none';
+            });
         }
     }
 
@@ -4396,24 +4609,8 @@
         }
 
         // Step 3 평가 기준 바인딩
-        if (adminConfig.evaluation && adminConfig.evaluation.length > 0) {
-            initEvalCriteria();
-            adminConfig.evaluation.forEach(e => {
-                const cb = document.getElementById(`eval-cb-${e.id}`);
-                const ratio = document.getElementById(`eval-ratio-${e.id}`);
-                const item = document.getElementById(`eval-item-${e.id}`);
-                if (cb && ratio && item) {
-                    cb.checked = true;
-                    ratio.disabled = false;
-                    ratio.value = e.ratio;
-                    item.classList.add('selected');
-                }
-            });
-            updateEvalTotal();
-        } else {
-            initEvalCriteria();
-            updateEvalTotal();
-        }
+        initEvalCriteria();
+        updateEvalTotal();
 
         goToStep(2);
     }
