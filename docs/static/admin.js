@@ -400,6 +400,18 @@
                                 <span id="drawer-gas-test-badge" style="display: none;"></span>
                             </div>
                             <button id="drawer-save-gas-btn" class="drawer-btn-primary">데이터베이스 설정 저장</button>
+                            
+                            <!-- 💡 데이터베이스 연동 설명 안내 영역 -->
+                            <div style="margin-top: 16px; padding: 12px 14px; background: rgba(56, 189, 248, 0.03); border: 1px solid rgba(56, 189, 248, 0.1); border-radius: 8px; font-size: 11px; line-height: 1.6; color: #cbd5e1; text-align: left;">
+                                <div style="font-weight: 700; color: #38bdf8; margin-bottom: 6px; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                                    <span>💡</span> 데이터베이스 연동 안내
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <div><strong>• GAS (구글 앱스 스크립트)</strong><br>구글 스프레드시트를 클라우드 DB처럼 호출하기 위한 전용 중계 API URL입니다.</div>
+                                    <div><strong>• 연동 테스트</strong><br>입력한 API URL이 정상 작동하고 데이터 읽기/쓰기가 올바르게 연결되는지 사전에 검증합니다.</div>
+                                    <div><strong>• 데이터베이스 설정 저장</strong><br>검증 완료된 GAS 주소를 계정에 매핑하여 성적 공시 및 실시간 백업에 자동으로 활용합니다.</div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 4. 마스터 회원 관리 패널 (마스터 권한 시에만 렌더링) -->
