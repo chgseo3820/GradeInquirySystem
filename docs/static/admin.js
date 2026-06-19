@@ -1432,19 +1432,25 @@
 
         updatePublishStatusDisplay(info);
 
-        autoSaveDataJsonToServer().then(res => {
-            if (res && res.success) {
-                alert('📢 성적이 공시되었으며, 서버의 docs/data.enc.json 파일로 암호화 저장되었습니다!');
-            } else {
-                alert('📢 성적이 공시되었습니다!\n(로컬 백엔드 서버가 종료 상태이거나 암호화 비밀번호 환경변수가 없어 data.enc.json 자동 저장에 실패했습니다. 필요한 경우 아래의 다운로드 버튼을 눌러 암호화 파일로 수동 저장해 주세요.)');
-            }
-        });
+        const isLocalEnv = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (isLocalEnv) {
+            autoSaveDataJsonToServer().then(res => {
+                if (res && res.success) {
+                    showCustomAlert('📢 성적 공시 완료', '성적이 성공적으로 공시되었으며, 로컬 서버의 docs/data.enc.json 파일로 암호화 저장되었습니다!', 'success');
+                } else {
+                    showCustomAlert('📢 성적 공시 완료', '성적이 공시되었습니다!\n\n(참고: 로컬 백엔드 서버가 종료 상태이거나 암호화 비밀번호 환경변수가 없어 data.enc.json 자동 저장에 실패했습니다. 수동으로 백업 파일을 생성하려면 하단의 "암호화 파일 다운로드" 버튼을 눌러주세요.)', 'warning');
+                }
+            });
+        } else {
+            showCustomAlert('📢 성적 공시 완료', '성적이 안전하게 브라우저 데이터베이스(LocalStorage)에 공시되었습니다!\n\n필요한 경우 하단의 "암호화 파일 다운로드" 버튼을 눌러 데이터 백업 파일을 생성하여 로컬에 보관하실 수 있습니다.', 'success');
+        }
     }
 
     function unpublishGrades() {
         const info = getPublishInfo();
         if (!info || !info.published) {
-            alert('현재 공시된 상태가 아닙니다.');
+            showCustomAlert('⚠️ 경고', '현재 공시된 상태가 아닙니다.', 'warning');
             return;
         }
 
@@ -1476,13 +1482,19 @@
 
         updatePublishStatusDisplay(null);
         
-        autoSaveDataJsonToServer().then(res => {
-            if (res && res.success) {
-                alert('🚫 공시가 취소되었으며, 서버의 docs/data.enc.json 파일로 암호화 저장되었습니다.');
-            } else {
-                alert('🚫 공시가 취소되었습니다.\n(로컬 백엔드 서버가 종료 상태이거나 암호화 비밀번호 환경변수가 없어 data.enc.json 자동 저장에 실패했습니다. 필요한 경우 아래의 다운로드 버튼을 눌러 암호화 파일로 수동 저장해 주세요.)');
-            }
-        });
+        const isLocalEnv = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (isLocalEnv) {
+            autoSaveDataJsonToServer().then(res => {
+                if (res && res.success) {
+                    showCustomAlert('🚫 공시 취소 완료', '공시가 취소되었으며, 로컬 서버의 docs/data.enc.json 파일로 암호화 저장되었습니다.', 'success');
+                } else {
+                    showCustomAlert('🚫 공시 취소 완료', '공시가 취소되었습니다.\n\n(참고: 로컬 백엔드 서버가 종료 상태이거나 암호화 비밀번호 환경변수가 없어 data.enc.json 자동 저장에 실패했습니다. 수동으로 백업 파일을 생성하려면 하단의 "암호화 파일 다운로드" 버튼을 눌러주세요.)', 'warning');
+                }
+            });
+        } else {
+            showCustomAlert('🚫 공시 취소 완료', '공시가 안전하게 취소되었습니다.\n\n학생들이 더 이상 성적을 조회할 수 없도록 설정이 변경되었습니다.', 'success');
+        }
     }
 
     function loadExistingPublishStatus() {
@@ -5206,6 +5218,75 @@
             bar3.style.backgroundColor = '#22c55e';
             bar4.style.backgroundColor = '#22c55e';
         }
+    }
+
+    function showCustomAlert(title, message, type = 'info') {
+        const modalId = 'scorequery-custom-alert-modal';
+        const existing = document.getElementById(modalId);
+        if (existing) existing.remove();
+
+        let icon = '📢';
+        let iconColor = '#38bdf8';
+        if (type === 'success') {
+            icon = '✨';
+            iconColor = '#34d399';
+        } else if (type === 'warning') {
+            icon = '⚠️';
+            iconColor = '#fbbf24';
+        } else if (type === 'error') {
+            icon = '❌';
+            iconColor = '#f87171';
+        }
+
+        const modalHtml = `
+            <div id="${modalId}" style="position: fixed; inset: 0; z-index: 100000; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px;">
+                <div class="auth-card" style="width: 100%; max-width: 480px; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); text-align: left; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-xl); animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;">
+                    <div style="display: flex; gap: 14px; align-items: flex-start; margin-bottom: 20px;">
+                        <span style="font-size: 24px; padding: 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-glass); flex-shrink: 0; display: inline-flex; justify-content: center; align-items: center; color: ${iconColor};">
+                            ${icon}
+                        </span>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text-main); line-height: 1.4;">${title}</h4>
+                            <div style="margin-top: 10px; font-size: 13.5px; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                        <button id="custom-alert-close-btn" class="btn-next" style="margin: 0; padding: 10px 24px; font-size: 13px; font-weight: 600;">확인</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        if (!document.getElementById('modal-animation-style')) {
+            const style = document.createElement('style');
+            style.id = 'modal-animation-style';
+            style.textContent = `
+                @keyframes modalFadeIn {
+                    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const modal = document.getElementById(modalId);
+        const closeBtn = document.getElementById('custom-alert-close-btn');
+        const closeModal = () => modal.remove();
+
+        closeBtn.onclick = closeModal;
+        modal.onclick = (e) => {
+            if (e.target === modal) closeModal();
+        };
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', handleKeyDown);
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
     }
 
     // Expose mode functions for app.js
