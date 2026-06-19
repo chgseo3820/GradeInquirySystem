@@ -815,11 +815,15 @@
                             <div class="complete-summary" id="complete-summary"></div>
 
                             <!-- 🔑 접속 비밀번호 설정 필드 (엑셀 업로드 전 필수 지정) -->
-                            <div class="course-selector" style="margin-top: 15px; margin-bottom: 20px; text-align: left; width: 100%;">
-                                <label for="publish-access-code" style="font-weight: 600; color: var(--text-main); display: block; margin-bottom: 8px;">🔑 성적조회 접속 비밀번호 (6자리 숫자)</label>
-                                <input type="password" id="publish-access-code" class="wizard-select" placeholder="6자리 비밀번호 입력 (예: 123456)" maxlength="6" inputmode="numeric" required style="width: 100%; background: rgba(15,23,42,0.6); color: white; border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px 14px; font-size: 14px; outline: none;">
-                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 6px; line-height: 1.4;">
-                                    💡 이 비밀번호는 데이터 해싱 및 조회 보안 키로 사용됩니다. 설정 후 수업시간, LMS, 카톡, 문자, 이메일 등으로 직접 알려주셔야 학생들이 성적을 조회할 수 있습니다.
+                            <div class="access-code-container">
+                                <div class="access-code-row">
+                                    <label for="publish-access-code" class="access-code-label">
+                                        <span class="access-code-icon">🔑</span>학생들의 성적조회접속비밀번호(6자리)
+                                    </label>
+                                    <input type="password" id="publish-access-code" class="access-code-input" placeholder="6자리 입력 (예: 123456)" maxlength="6" inputmode="numeric" required>
+                                    <div class="access-code-hint">
+                                        <span class="hint-icon">💡</span>이 비밀번호는 데이터 해싱 및 조회 보안 키로 사용됩니다. 설정 후 수업시간, LMS, 카톡, 문자, 이메일 등으로 직접 알려주셔야 학생들이 성적을 조회할 수 있습니다.
+                                    </div>
                                 </div>
                             </div>
 
