@@ -79,6 +79,14 @@
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
 
+    // 교수자 정보 모달 닫기
+    document.addEventListener('click', (e) => {
+        if (e.target.id === 'btn-prof-info-close' || e.target.id === 'btn-prof-info-close-x' || e.target.id === 'prof-info-modal') {
+            const modal = document.getElementById('prof-info-modal');
+            if (modal) modal.style.display = 'none';
+        }
+    });
+
     phoneLast4Input.addEventListener('input', (e) => {
         e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
     });
@@ -112,6 +120,8 @@
             if (authGroup) {
                 authGroup.style.display = 'none';
             }
+            const btnProfInfo = document.getElementById('btn-prof-info');
+            if (btnProfInfo) btnProfInfo.style.display = 'none';
             const courseInfo = document.getElementById('login-course-info');
             if (courseInfo) {
                 courseInfo.textContent = '과목을 선택하면 성적을 조회할 수 있습니다';
@@ -181,6 +191,44 @@
                 }
             }
 
+            // 교수자 정보 버튼 처리
+            const btnProfInfo = document.getElementById('btn-prof-info');
+            if (btnProfInfo) {
+                let profName = '';
+                let profEmail = '';
+                if (selectedCourse.professor && selectedCourse.professor.name) {
+                    profName = selectedCourse.professor.name;
+                    profEmail = selectedCourse.professor.email || '';
+                } else {
+                    try {
+                        const cfg = JSON.parse(localStorage.getItem('scorequery_config') || '{}');
+                        if (cfg.professor && cfg.professor.name) {
+                            profName = cfg.professor.name;
+                            profEmail = cfg.professor.email || '';
+                        }
+                    } catch { /* ignore */ }
+                }
+                
+                if (profName) {
+                    btnProfInfo.style.display = 'flex';
+                    btnProfInfo.onclick = () => {
+                        const modal = document.getElementById('prof-info-modal');
+                        document.getElementById('prof-info-name').textContent = profName + ' 교수';
+                        const emailEl = document.getElementById('prof-info-email');
+                        if (profEmail) {
+                            emailEl.textContent = profEmail;
+                            emailEl.href = 'mailto:' + profEmail;
+                            emailEl.parentElement.style.display = 'flex';
+                        } else {
+                            emailEl.parentElement.style.display = 'none';
+                        }
+                        if (modal) modal.style.display = 'flex';
+                    };
+                } else {
+                    btnProfInfo.style.display = 'none';
+                }
+            }
+
             // 공시 상태 확인
             const publishStatus = checkPublishStatus(selectedCourse);
 
@@ -193,6 +241,8 @@
         } else {
             selectedCourse = null;
             authGroup.style.display = 'none';
+            const btnProfInfo = document.getElementById('btn-prof-info');
+            if (btnProfInfo) btnProfInfo.style.display = 'none';
             document.getElementById('login-course-info').textContent = '성적을 조회합니다';
         }
     });

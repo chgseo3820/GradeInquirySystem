@@ -102,7 +102,10 @@
                     <!-- 과목 선택 -->
                     <div class="course-select-group" id="student-course-group">
                         <div class="form-group">
-                            <label class="form-label" for="stu-course-select">📚 과목 선택</label>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label class="form-label" for="stu-course-select" style="margin-bottom: 0;">📚 과목 선택</label>
+                                <button type="button" id="btn-prof-info" style="display: none; background: none; border: none; color: var(--accent-blue); font-size: 13px; cursor: pointer; padding: 0; font-weight: 600; align-items: center; gap: 4px;">👨‍🏫 교수자 정보</button>
+                            </div>
                             <select id="stu-course-select" class="form-input select-unselected" required>
                                 <option value="">과목을 선택하세요</option>
                                 <!-- JS가 동적으로 채움 -->
@@ -1045,6 +1048,26 @@
                     <button type="submit" class="btn-next" style="flex: 1; margin: 0; padding: 10px 0;">확인</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 교수자 정보 모달 (학생모드용) -->
+    <div id="prof-info-modal" class="popup-modal-backdrop" style="display: none;">
+        <div class="popup-modal" style="max-width: 320px;">
+            <div class="popup-modal-header">
+                <h3 style="font-size: 16px;">👨‍🏫 담당 교수자 정보</h3>
+                <button type="button" class="popup-modal-close" id="btn-prof-info-close-x">&times;</button>
+            </div>
+            <div class="popup-modal-body" style="text-align: center; padding: 24px 16px;">
+                <div style="font-size: 48px; margin-bottom: 12px;">👨‍🏫</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;" id="prof-info-name">홍길동 교수</div>
+                <div style="font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    ✉️ <a href="#" id="prof-info-email" style="color: var(--accent-blue); text-decoration: none;">professor@university.ac.kr</a>
+                </div>
+            </div>
+            <div class="popup-modal-footer" style="justify-content: center;">
+                <button type="button" class="btn-modal-close" id="btn-prof-info-close" style="width: 100%;">확인</button>
+            </div>
         </div>
     </div>
 
