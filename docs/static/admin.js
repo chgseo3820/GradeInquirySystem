@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ScoreQuery — 교수 모드 (Admin Wizard)
  * 3단계 위자드: 교수정보 → 과목정보 → 평가기준 → 샘플 Excel 다운로드
  */
@@ -2936,7 +2936,7 @@
             let optionsHtml = '';
             for (let p = 1; p <= N; p++) {
                 const selected = p === defaultPriority ? 'selected' : '';
-                optionsHtml += `<option value="${p}">${p}순위</option>`;
+                optionsHtml += `<option value="${p}" ${selected}>${p}순위</option>`;
             }
 
             div.innerHTML = `
