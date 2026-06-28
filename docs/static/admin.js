@@ -2823,9 +2823,9 @@
         const activeEvalItems = getActiveEvalItems();
 
         let ths = `
+            ${classFilterTh('step5a', allStudents)}
             ${sortableTh('step5a', '학번', 'student_id')}
             ${sortableTh('step5a', '성명', 'name')}
-            ${classFilterTh('step5a', allStudents)}
         `;
 
         activeEvalItems.forEach(item => {
@@ -2856,9 +2856,9 @@
 
             trs += `
                 <tr style="border-bottom:1px solid var(--border-glass);">
+                    <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     <td style="padding:10px; text-align:center; color:white;">${displayStudentId}</td>
                     <td style="padding:10px; text-align:center;">${displayStudentName}</td>
-                    <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     ${itemTds}
                     <td style="padding:10px; text-align:center; color:#34d399;">${extra}</td>
                     <td style="padding:10px; text-align:center; color:#fbbf24;">${special}</td>
@@ -3400,9 +3400,9 @@
         const studentList = getVisibleSortedStudents('step5c', allStudents);
 
         let ths = `
+            ${classFilterTh('step5c', allStudents)}
             ${sortableTh('step5c', '학번', 'student_id')}
             ${sortableTh('step5c', '성명', 'name')}
-            ${classFilterTh('step5c', allStudents)}
             ${sortableTh('step5c', '총점 조정', 'total_score', 'width:12%;')}
             ${sortableTh('step5c', '최종 학점', 'grade', 'width:18%;')}
             ${sortableTh('step5c', '상대평가 제외', 'relative_excluded', 'width:15%;')}
@@ -3435,9 +3435,9 @@
             const totalScoreVal = st.total_score !== null && st.total_score !== undefined && !isNaN(st.total_score) ? Number(st.total_score).toFixed(1) : '';
             trs += `
                 <tr style="border-bottom:1px solid var(--border-glass);" data-student-key="${st._studentKey}" data-student-id="${displayStudentId}" data-name="${displayStudentName}">
+                    <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     <td style="padding:10px; text-align:center; color:white;">${displayStudentId}</td>
                     <td style="padding:10px; text-align:center;">${displayStudentName}</td>
-                    <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     <td style="padding:10px; text-align:center;">
                         <input type="number" class="override-score-input" value="${totalScoreVal}" step="0.1" ${disabledAttr} style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; ${isAttendanceF ? 'opacity:0.6;' : ''}">
                     </td>
