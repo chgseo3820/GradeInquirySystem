@@ -2893,43 +2893,9 @@
         container.innerHTML = '';
 
         const N = activeEvalItems.length;
-        const initialRanks = new Array(N).fill(0);
-        
-        let attendanceIdx = activeEvalItems.findIndex(item => item.label.includes('출석'));
-        let finalIdx = activeEvalItems.findIndex(item => item.label.includes('기말'));
-        let midtermIdx = activeEvalItems.findIndex(item => item.label.includes('중간'));
 
-        const assignedValues = new Set();
-
-        if (attendanceIdx !== -1) {
-            initialRanks[attendanceIdx] = 1;
-            assignedValues.add(1);
-        }
-        if (finalIdx !== -1) {
-            let rank = 2;
-            while (assignedValues.has(rank) && rank <= N) rank++;
-            initialRanks[finalIdx] = Math.min(N, rank);
-            assignedValues.add(initialRanks[finalIdx]);
-        }
-        if (midtermIdx !== -1) {
-            let rank = 3;
-            while (assignedValues.has(rank) && rank <= N) rank++;
-            initialRanks[midtermIdx] = Math.min(N, rank);
-            assignedValues.add(initialRanks[midtermIdx]);
-        }
-
-        let currentRank = 1;
-        for (let i = 0; i < N; i++) {
-            if (initialRanks[i] === 0) {
-                while (assignedValues.has(currentRank) && currentRank <= N) currentRank++;
-                initialRanks[i] = currentRank;
-                assignedValues.add(currentRank);
-            }
-        }
-
+        // 우선순위 초기값 없이 '선택' 상태로 시작하도록 변경
         activeEvalItems.forEach((item, idx) => {
-            const defaultPriority = initialRanks[idx];
-
             const div = document.createElement('div');
             div.style.display = 'flex';
             div.style.alignItems = 'center';
@@ -2939,10 +2905,9 @@
             div.style.border = '1px solid var(--border-glass)';
             div.style.borderRadius = '6px';
 
-            let optionsHtml = '';
+            let optionsHtml = '<option value="">선택</option>';
             for (let p = 1; p <= N; p++) {
-                const selected = p === defaultPriority ? 'selected' : '';
-                optionsHtml += `<option value="${p}" ${selected}>${p}순위</option>`;
+                optionsHtml += `<option value="${p}">${p}순위</option>`;
             }
 
             div.innerHTML = `
@@ -2954,24 +2919,33 @@
             container.appendChild(div);
         });
 
-        // 배타적(서로 중복되지 않는) 순위 선택을 위한 값 스왑 기능
+        // 배타적(서로 중복되지 않는) 순위 선택을 위한 비활성화(disable) 기능
         const selects = container.querySelectorAll('.tie-breaker-select');
-        selects.forEach(select => {
-            select.dataset.previousValue = select.value;
-            select.addEventListener('change', function() {
-                const newValue = this.value;
-                const oldValue = this.dataset.previousValue;
-
-                selects.forEach(other => {
-                    if (other !== this && other.value === newValue) {
-                        other.value = oldValue;
-                        other.dataset.previousValue = oldValue;
+        
+        function updateTieBreakerOptions() {
+            const usedValues = new Set();
+            selects.forEach(sel => {
+                if (sel.value) usedValues.add(sel.value);
+            });
+            
+            selects.forEach(sel => {
+                Array.from(sel.options).forEach(opt => {
+                    if (opt.value === "") {
+                        opt.disabled = false;
+                    } else if (opt.value !== sel.value && usedValues.has(opt.value)) {
+                        opt.disabled = true;
+                    } else {
+                        opt.disabled = false;
                     }
                 });
-
-                this.dataset.previousValue = newValue;
             });
+        }
+
+        selects.forEach(select => {
+            select.addEventListener('change', updateTieBreakerOptions);
         });
+        
+        updateTieBreakerOptions(); // 초기 상태 반영
     }
 
     function setupGradingRulesLimits() {
@@ -3142,7 +3116,7 @@
         const tieBreakerSelects = document.querySelectorAll('.tie-breaker-select');
         const tieBreakers = Array.from(tieBreakerSelects).map(select => ({
             id: select.dataset.evalId,
-            priority: parseInt(select.value)
+            priority: select.value ? parseInt(select.value) : 999
         })).sort((a, b) => a.priority - b.priority).map(item => item.id);
 
         const studentList = Object.values(pendingUploadData.students);
