@@ -456,20 +456,21 @@
                     </div>
                     <div class="master-subtitle" style="font-size:13px; color:var(--text-secondary); margin-bottom:20px;">가입 신청 현황을 검토하고 승인 여부를 결정합니다.</div>
                     
-                    <!-- ── 구글 앱스 스크립트(GAS) 웹앱 URL 설정 ── -->
+                    <!-- ── 공개 연동 URL 설정 ── -->
                     <div class="master-settings" style="margin-bottom: 24px; padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); text-align: left;">
                         <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #38bdf8; display: flex; align-items: center; justify-content: space-between;">
-                            <span>⚙️ 구글 앱스 스크립트(GAS) 웹앱 URL 설정</span>
+                            <span>⚙️ 공개 연동 URL 설정</span>
                         </div>
                         <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-                            원격 승인 및 데이터베이스 연동을 위한 구글 앱스 스크립트(GAS) 웹앱 URL을 등록합니다.<br>
-                            (등록된 스프레드시트와 실시간 연동되어 가입자 정보를 저장하고 원격 승인 처리를 수행합니다.)
+                            원격 승인용 GAS URL과 학생 성적 조회용 API URL을 등록합니다.<br>
+                            공개 Pages에는 민감 성적 파일을 두지 않고 API URL을 통해 서버에서 검증 조회합니다.
                         </div>
-                        <div style="display: flex; gap: 8px;">
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 12px; outline: none;">
                             <button id="save-gas-url-btn" style="background: linear-gradient(135deg, #0ea5e9, #2563eb); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">저장</button>
                             <button id="load-gas-url-btn" style="background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border-glass); color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="로컬 저장소에서 설정된 URL 불러오기">URL 가져오기</button>
                         </div>
+                        <input type="text" id="api-url-input" placeholder="https://your-scorequery-api.example.com" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 12px; outline: none;">
                     </div>
                     
                     <!-- ── 성적 조회 일정 및 D-Day 기간 설정 ── -->

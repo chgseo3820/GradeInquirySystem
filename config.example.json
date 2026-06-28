@@ -1,4 +1,15 @@
 {
-  "_comment": "이 파일은 예시입니다. 'config.json' 으로 복사한 뒤 본인 환경에 맞는 값으로 채우세요. config.json 은 .gitignore 로 제외됩니다.",
-  "gas_url": "https://script.google.com/macros/s/YOUR_DEPLOYED_WEB_APP_ID/exec"
+  "_comment": "이 파일을 config.json으로 복사한 뒤 로컬 환경에 맞게 값을 채우세요. config.json은 GitHub에 올리지 않습니다.",
+  "access_code": "123456",
+  "gas_url": "https://script.google.com/macros/s/YOUR_DEPLOYED_WEB_APP_ID/exec",
+  "api_url": "https://your-scorequery-api.example.com",
+  "course": {
+    "year": "2026",
+    "semester": "1학기",
+    "name": "과목명"
+  },
+  "professor": {
+    "name": "교수명",
+    "email": "professor@example.edu"
+  }
 }

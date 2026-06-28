@@ -90,6 +90,57 @@ students: dict[int, dict] = {}      # {student_id: row_dict}
 class_averages: dict[int, dict] = {}
 class_maxes: dict[int, dict] = {}
 class_counts: dict[int, int] = {}
+course_metadata: dict[str, object] = {}
+dynamic_eval_meta: list[dict] = []
+
+
+def _course_id(course: dict) -> str:
+    raw = "_".join(str(course.get(k, "") or "") for k in ("year", "semester", "name"))
+    value = re.sub(r"\s+", "_", raw)
+    value = re.sub(r"[^\w가-힣-]", "_", value)
+    value = re.sub(r"_+", "_", value).strip("_")
+    return value or "scorequery-course"
+
+
+def _read_local_config() -> dict:
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _derive_course_metadata() -> dict:
+    cfg = _read_local_config()
+    configured = cfg.get("course") if isinstance(cfg.get("course"), dict) else {}
+
+    filename = os.path.basename(EXCEL_FILE)
+    match = re.match(r"^(\d{4})-(.+?)_(.+?)_(.+)\.xlsx$", filename)
+    fallback = {
+        "year": match.group(1) if match else "2026",
+        "semester": match.group(2) if match else "1학기",
+        "name": match.group(3) if match else "성적조회",
+    }
+
+    course = {
+        "year": str(configured.get("year") or fallback["year"]),
+        "semester": str(configured.get("semester") or fallback["semester"]),
+        "name": str(configured.get("name") or fallback["name"]),
+    }
+    course["id"] = str(configured.get("id") or _course_id(course))
+
+    professor_cfg = cfg.get("professor") if isinstance(cfg.get("professor"), dict) else {}
+    professor = {
+        "name": str(professor_cfg.get("name") or (match.group(4) if match else "")),
+        "email": str(professor_cfg.get("email") or cfg.get("professor_email") or ""),
+    }
+    if professor["name"] or professor["email"]:
+        course["professor"] = professor
+
+    course["published"] = bool(students)
+    return course
 
 
 def safe_float(v):
@@ -128,7 +179,7 @@ def extract_phone_last4(phone: str) -> str:
 
 
 def has_relative_exclusion_marker(value) -> bool:
-    text = str(value or "").replace(" ", "")
+    text = re.sub(r"\s+", "", str(value or ""))
     return "상대평가제외" in text
 
 
@@ -155,7 +206,7 @@ def find_header_idx(headers, keywords, exclude_keywords=None):
 
 def load_excel():
     """서버 시작 시 Excel 파일을 로드하여 메모리에 캐싱"""
-    global students, class_averages, class_maxes, class_counts
+    global students, class_averages, class_maxes, class_counts, course_metadata
 
     wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
 
@@ -178,6 +229,7 @@ def load_excel():
         "student_id":   find_header_idx(headers, ["학번"]),
         "name":         find_header_idx(headers, ["성명", "이름"]),
         "phone":        find_header_idx(headers, ["전화", "핸드폰", "연락처", "휴대폰"]),
+        "exclude":      find_header_idx(headers, ["상대평가제외사유", "상대평가 제외 사유", "상대평가제외", "상대평가 제외", "제외사유", "제외"]),
         "extra":        find_header_idx(headers, ["가산점"]),
         "extra_memo":   find_header_idx(headers, ["가산메모"]),
         "special":      find_header_idx(headers, ["특별점수", "특별"]),
@@ -256,6 +308,7 @@ def load_excel():
         total = safe_float(get_val("total"))
         rank_val = get_val("rank")
         grade = get_val("grade") or ""
+        exclude_reason = get_val("exclude") or ""
         extra = safe_float(get_val("extra"))
         extra_memo = get_val("extra_memo") or ""
         special = safe_float(get_val("special"))
@@ -272,6 +325,7 @@ def load_excel():
         student_name = get_val("name") or ""
         relative_exclusion_reason = " / ".join(
             unique_non_empty([
+                exclude_reason,
                 extra_memo,
                 remark if has_relative_exclusion_marker(remark) else "",
             ])
@@ -308,6 +362,7 @@ def load_excel():
             "grade": grade,
             "absences": absences,
             "remark": remark,
+            "exclude_reason": exclude_reason,
             "relative_exclusion_reason": relative_exclusion_reason,
             "is_relative_excluded": is_relative_excluded,
         }
@@ -374,6 +429,7 @@ def load_excel():
     class_averages = new_class_averages
     class_maxes = new_class_maxes
     class_counts = new_class_counts
+    course_metadata = _derive_course_metadata()
 
     wb.close()
     print(f"[ScoreQuery] {len(students)}명 학생 데이터 로드 완료 (분반 {len(class_averages)}개)")
@@ -499,20 +555,27 @@ def save_public_config():
     try:
         data = request.get_json(silent=True) or {}
         gas_url = str(data.get("gas_url", "")).strip()
+        api_url = str(data.get("api_url", "")).strip().rstrip("/")
 
         # 매우 가벼운 검증: https URL만 허용
         if gas_url and not gas_url.startswith("https://"):
             return jsonify({"error": "gas_url은 https:// 로 시작해야 합니다."}), 400
+        if api_url and not (
+            api_url.startswith("https://")
+            or api_url.startswith("http://127.0.0.1")
+            or api_url.startswith("http://localhost")
+        ):
+            return jsonify({"error": "api_url은 https:// 또는 로컬 개발 주소만 허용됩니다."}), 400
 
-        config_data = {"gas_url": gas_url}
+        config_data = {"gas_url": gas_url, "api_url": api_url}
         os.makedirs(os.path.dirname(PUBLIC_CONFIG_FILE), exist_ok=True)
         with open(PUBLIC_CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config_data, f, ensure_ascii=False, indent=2)
 
-        print(f"[ScoreQuery] public-config.json saved with gas_url: {gas_url}")
+        print(f"[ScoreQuery] public-config.json saved with gas_url: {gas_url}, api_url: {api_url}")
         return jsonify({
             "success": True,
-            "message": "자동 메일 발송 설정(public-config.json)이 저장되었습니다.",
+            "message": "공개 연동 설정(public-config.json)이 저장되었습니다.",
             "path": PUBLIC_CONFIG_FILE,
         })
     except Exception as e:
@@ -543,6 +606,14 @@ def serve_docs_index():
 @app.route("/admin")
 def admin_redirect():
     return redirect("/docs/")
+
+
+@app.route("/api/courses", methods=["GET"])
+def get_courses():
+    metadata = course_metadata or _derive_course_metadata()
+    if not students:
+        return jsonify({"courses": []})
+    return jsonify({"courses": [metadata]})
 
 
 @app.route("/api/score", methods=["POST"])
@@ -580,7 +651,11 @@ def get_score():
 
     # 3) 접속 비밀번호(access_code) 설정 값과 대조 검증 (설정되어 있는 경우에만 검증)
     expected_code = _get_configured_access_code()
-    if expected_code and not hmac.compare_digest(access_code, expected_code):
+    if not expected_code:
+        return jsonify({
+            "error": "성적 조회 접속 비밀번호가 서버에 설정되어 있지 않습니다. 관리자에게 문의해 주세요."
+        }), 503
+    if not hmac.compare_digest(access_code, expected_code):
         return jsonify({
             "error": "일치하는 정보를 찾을 수 없습니다.\n비밀번호를 다시 확인해 주세요."
         }), 404
@@ -614,6 +689,10 @@ def get_score():
         "grade": student["grade"],
         "absences": student["absences"],
         "remark": student["remark"],
+        "extra_memo": student.get("extra_memo", ""),
+        "special_memo": student.get("special_memo", ""),
+        "relative_exclusion_reason": student.get("relative_exclusion_reason", ""),
+        "is_relative_excluded": bool(student.get("is_relative_excluded")),
     }
     
     # 동적 평가항목 점수 추가
@@ -623,6 +702,7 @@ def get_score():
 
     response = {
         "student": student_res,
+        "course": course_metadata or _derive_course_metadata(),
         "evaluation": dynamic_eval_meta,
         "class_avg": avg,
         "class_max": mx,

@@ -97,60 +97,36 @@ function getOrCreateUsersSheet() {
   return sheet;
 }
 
-// 시트가 헤더만 있을 때 기본 마스터 계정 초기화
+// 시트가 헤더만 있을 때 Script Properties 기반으로 초기 마스터 계정 생성
 function initializeMasterIfEmpty(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
+    var props = PropertiesService.getScriptProperties();
+    var masterEmail = props.getProperty("SCOREQUERY_MASTER_EMAIL");
+    var masterName = props.getProperty("SCOREQUERY_MASTER_NAME") || "ScoreQuery Master";
+    var masterUniv = props.getProperty("SCOREQUERY_MASTER_UNIV") || "";
+    var masterDept = props.getProperty("SCOREQUERY_MASTER_DEPT") || "";
+    var masterPwHash = props.getProperty("SCOREQUERY_MASTER_PW_HASH");
+    var masterPhone = props.getProperty("SCOREQUERY_MASTER_PHONE") || "";
+
+    if (!masterEmail || !masterPwHash) {
+      throw new Error("초기 마스터 계정이 설정되지 않았습니다. GAS Script Properties에 SCOREQUERY_MASTER_EMAIL, SCOREQUERY_MASTER_PW_HASH를 먼저 설정하세요.");
+    }
+
     var now = new Date().toISOString();
-    // armour@tu.ac.kr / armour1234
-    // armour1234의 SHA-256 해시값: 84668ba4df93b3f27df7a360fde2f72c4ad3d9020970a24c2ed2b144bd3540b6
     sheet.appendRow([
-      "armour@tu.ac.kr",
-      "서창갑",
-      "동명대학교",
-      "경영학과",
-      "84668ba4df93b3f27df7a360fde2f72c4ad3d9020970a24c2ed2b144bd3540b6",
-      "010-9756-5400",
+      masterEmail,
+      masterName,
+      masterUniv,
+      masterDept,
+      masterPwHash,
+      masterPhone,
       "approved",
       true,
       now, // regDate
       now, // approveDate
       "",  // withdrawReqDate
       ""   // withdrawApproveDate
-    ]);
-    
-    // changgab.seo@gmail.com / &armour&1831
-    // &armour&1831의 SHA-256 해시값: e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d
-    sheet.appendRow([
-      "changgab.seo@gmail.com",
-      "서창갑",
-      "동명대학교",
-      "경영학과",
-      "e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d",
-      "010-9756-5400",
-      "approved",
-      false,
-      now,
-      now,
-      "",
-      ""
-    ]);
-    
-    // armour@g.tu.ac.kr / &armour&1831
-    // &armour&1831의 SHA-256 해시값: e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d
-    sheet.appendRow([
-      "armour@g.tu.ac.kr",
-      "서창갑",
-      "동명대학교",
-      "경영학과",
-      "e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d",
-      "010-9756-5400",
-      "approved",
-      true,
-      now,
-      now,
-      "",
-      ""
     ]);
   }
 }
@@ -295,7 +271,11 @@ function handleLogin(sheet, payload) {
 // 전체 회원 목록 가져오기 (마스터 전용)
 function handleGetUsers(sheet, auth) {
   validateMasterAuth(sheet, auth);
-  return getAllUsersFromSheet(sheet);
+  return getAllUsersFromSheet(sheet).map(function(user) {
+    var safeUser = Object.assign({}, user);
+    delete safeUser.pw;
+    return safeUser;
+  });
 }
 
 // 가입자 상태 일괄 처리 (승인/반려/삭제/복구)

@@ -70,7 +70,7 @@ def make_hash_key(student_id, phone_last4, access_code):
 
 
 def has_relative_exclusion_marker(value):
-    text = str(value or "").replace(" ", "")
+    text = re.sub(r"\s+", "", str(value or ""))
     return "상대평가제외" in text
 
 
@@ -134,6 +134,7 @@ def build():
         "student_id":   find_idx(["학번"]),
         "name":         find_idx(["성명", "이름"]),
         "phone":        find_idx(["전화", "핸드폰", "연락처", "휴대폰"]),
+        "exclude":      find_idx(["상대평가제외사유", "상대평가 제외 사유", "상대평가제외", "상대평가 제외", "제외사유", "제외"]),
         "extra":        find_idx(["가산점"]),
         "extra_memo":   find_idx(["가산메모"]),
         "special":      find_idx(["특별점수", "특별"]),
@@ -212,6 +213,7 @@ def build():
         total = safe_float(get_val("total"))
         rank_val = get_val("rank")
         grade = get_val("grade") or ""
+        exclude_reason = get_val("exclude") or ""
         extra = safe_float(get_val("extra"))
         extra_memo = get_val("extra_memo") or ""
         special = safe_float(get_val("special"))
@@ -228,6 +230,7 @@ def build():
         student_name = get_val("name") or ""
         relative_exclusion_reason = " / ".join(
             unique_non_empty([
+                exclude_reason,
                 extra_memo,
                 remark if has_relative_exclusion_marker(remark) else "",
             ])
@@ -263,6 +266,7 @@ def build():
             "grade": grade,
             "absences": absences,
             "remark": remark,
+            "exclude_reason": exclude_reason,
             "relative_exclusion_reason": relative_exclusion_reason,
             "is_relative_excluded": is_relative_excluded,
         }
@@ -335,14 +339,16 @@ def build():
         class_averages[str(cn)] = avg
         class_maxes[str(cn)] = mx
         class_counts[str(cn)] = data["count"]
-    # 기존 암호화 파일이나 로컬 설정에서 gas_url을 읽어오기
+    # 기존 암호화 파일이나 로컬 설정에서 공개 설정을 읽어오기
     gas_url = ""
+    api_url = ""
     env_passphrase = get_env_passphrase()
 
     try:
         if env_passphrase and os.path.exists(OUTPUT_FILE):
             old_data = load_encrypted_json(OUTPUT_FILE, env_passphrase)
             gas_url = old_data.get("gas_url", "")
+            api_url = old_data.get("api_url", "")
     except Exception:
         pass
 
@@ -351,6 +357,8 @@ def build():
             cfg = load_encrypted_json(ENCRYPTED_CONFIG_FILE, env_passphrase)
             if cfg.get("gas_url"):
                 gas_url = cfg.get("gas_url")
+            if cfg.get("api_url"):
+                api_url = cfg.get("api_url")
     except Exception:
         pass
 
@@ -360,6 +368,8 @@ def build():
                 cfg = json.load(f)
                 if cfg.get("gas_url"):
                     gas_url = cfg.get("gas_url")
+                if cfg.get("api_url"):
+                    api_url = cfg.get("api_url")
     except Exception:
         pass
 
@@ -391,6 +401,7 @@ def build():
         "evaluation": dynamic_eval_meta,
         "access_code": access_code,
         "gas_url": gas_url,
+        "api_url": api_url,
         "students": students,
         "class_avg": class_averages,
         "class_max": class_maxes,
@@ -403,19 +414,19 @@ def build():
     if os.path.exists(PLAINTEXT_OUTPUT_FILE):
         os.remove(PLAINTEXT_OUTPUT_FILE)
 
-    # public-config.json 생성 (가입/로그인 시 GAS URL 조회를 위한 공개 설정 파일)
+    # public-config.json 생성 (GAS/API URL 조회를 위한 공개 설정 파일)
     public_config_path = os.path.join("docs", "public-config.json")
     try:
         with open(public_config_path, "w", encoding="utf-8") as f:
-            json.dump({"gas_url": gas_url}, f, ensure_ascii=False, indent=2)
-        print(f"[build_data] {public_config_path} 생성 완료 (gas_url: {gas_url})")
+            json.dump({"gas_url": gas_url, "api_url": api_url}, f, ensure_ascii=False, indent=2)
+        print(f"[build_data] {public_config_path} 생성 완료 (gas_url: {gas_url}, api_url: {api_url})")
     except Exception as e:
         print(f"⚠️ [build_data] public-config.json 생성 실패: {e}")
 
     wb.close()
     print(f"[build_data] {len(students)}명 데이터 -> {OUTPUT_FILE} 암호화 생성 완료")
     print(f"   분반: {len(class_averages)}개, 파일크기: {os.path.getsize(OUTPUT_FILE):,} bytes")
-    print("   보안방식: AES-256-GCM + PBKDF2-HMAC-SHA256, SHA-256(학번|전화번호뒷4자리)")
+    print("   보안방식: AES-256-GCM + PBKDF2-HMAC-SHA256, SHA-256(학번|전화번호뒷4자리|접속비밀번호)")
 
 
 if __name__ == "__main__":

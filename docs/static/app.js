@@ -64,6 +64,46 @@
     let gradeData = null;
     let selectedCourse = null; // { year, semester, name }
     let cachedAvailableCourses = [];
+    let publicConfig = null;
+
+    async function loadPublicConfig() {
+        if (publicConfig !== null) return publicConfig;
+        publicConfig = {};
+        try {
+            const res = await fetch('public-config.json?_t=' + Date.now(), { cache: 'no-store' });
+            if (res.ok) {
+                publicConfig = await res.json();
+            }
+        } catch { /* public config is optional */ }
+        return publicConfig || {};
+    }
+
+    function getApiOrigin() {
+        const apiUrl = publicConfig && publicConfig.api_url ? String(publicConfig.api_url).trim().replace(/\/+$/, '') : '';
+        if (apiUrl) return apiUrl;
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return window.location.origin;
+        }
+        return '';
+    }
+
+    async function fetchJsonFromApi(path, options = {}) {
+        await loadPublicConfig();
+        const origin = getApiOrigin();
+        if (!origin) return null;
+        const res = await fetch(origin + path, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            }
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(payload.error || `서버 요청 실패 (${res.status})`);
+        }
+        return payload;
+    }
 
     function getCourseId(course) {
         if (!course) return '';
@@ -330,6 +370,7 @@
 
     // ── 과목 목록 비동기 사전 로딩 ──
     async function loadAvailableCoursesAsync() {
+        await loadPublicConfig();
         const coursesMap = new Map();
         const addCourse = (c) => {
             if (!c || !c.name) return;
@@ -356,8 +397,19 @@
                 if (c.publishEndDate) existing.publishEndDate = c.publishEndDate;
                 if (c.id) existing.id = c.id;
                 if (c._source === 'data.json') existing._source = 'data.json';
+                if (c._source === 'api') existing._source = 'api';
             }
         };
+
+        // 0) Secure API metadata. Public deployments should use this path.
+        try {
+            const apiData = await fetchJsonFromApi('/api/courses', { method: 'GET' });
+            if (apiData && Array.isArray(apiData.courses)) {
+                apiData.courses.forEach(c => addCourse({ ...c, _source: 'api', published: c.published !== false }));
+            }
+        } catch (err) {
+            console.warn('[ScoreQuery] API course loading failed:', err);
+        }
 
         // 1) localStorage - scorequery_courses
         try {
@@ -511,9 +563,39 @@
         setLoading(true);
 
         try {
+            await loadPublicConfig();
+            const apiOrigin = getApiOrigin();
+            if (apiOrigin) {
+                try {
+                    const apiResult = await fetchJsonFromApi('/api/score', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            course_id: getCourseId(selectedCourse),
+                            student_id: studentId,
+                            phone_last4: phoneLast4,
+                            access_code: accessCode
+                        })
+                    });
+
+                    localStorage.removeItem('scorequery_fail_count');
+                    gradeData = {
+                        course: apiResult.course || selectedCourse,
+                        evaluation: apiResult.evaluation || []
+                    };
+                    renderResult(apiResult);
+                    return;
+                } catch (apiErr) {
+                    if (selectedCourse && selectedCourse._source === 'api') {
+                        showError(apiErr.message || '성적 조회 서버 요청에 실패했습니다.');
+                        return;
+                    }
+                    console.warn('[ScoreQuery] API score lookup failed, trying local preview data:', apiErr);
+                }
+            }
+
             const sources = await loadAllDataSources();
             if (sources.length === 0) {
-                showError('성적 데이터가 없습니다.\n교수 모드에서 Excel을 업로드해 주세요.');
+                showError('성적 조회 서버가 설정되어 있지 않습니다.\n관리자에게 문의해 주세요.');
                 setLoading(false);
                 return;
             }

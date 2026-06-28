@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ScoreQuery — 교수 모드 (Admin Wizard)
  * 3단계 위자드: 교수정보 → 과목정보 → 평가기준 → 샘플 Excel 다운로드
  */
@@ -110,6 +110,70 @@
         }
     }
 
+    const LOCAL_ADMIN_TOKEN_KEY = 'scorequery_admin_token_session';
+
+    function getLocalBackendOrigin() {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return window.location.origin;
+        }
+        return 'http://127.0.0.1:5000';
+    }
+
+    function getSessionAdminToken(forcePrompt = false) {
+        if (!forcePrompt) {
+            const existing = sessionStorage.getItem(LOCAL_ADMIN_TOKEN_KEY);
+            if (existing) return existing;
+        }
+        const token = prompt('로컬 Flask 관리자 API 토큰(SCOREQUERY_ADMIN_TOKEN)을 입력하세요:');
+        if (!token) return '';
+        const trimmed = token.trim();
+        if (trimmed) {
+            sessionStorage.setItem(LOCAL_ADMIN_TOKEN_KEY, trimmed);
+        }
+        return trimmed;
+    }
+
+    async function postLocalAdminJson(path, payload) {
+        let token = getSessionAdminToken(false);
+        if (!token) {
+            return { success: false, error: '관리자 API 토큰이 입력되지 않았습니다.' };
+        }
+
+        const send = async (adminToken) => {
+            const response = await fetch(`${getLocalBackendOrigin()}${path}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Admin-Token': adminToken
+                },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json().catch(() => ({}));
+            return { response, result };
+        };
+
+        let { response, result } = await send(token);
+        if (response.status === 401) {
+            sessionStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
+            token = getSessionAdminToken(true);
+            if (!token) {
+                return { success: false, error: '관리자 API 토큰이 입력되지 않았습니다.' };
+            }
+            ({ response, result } = await send(token));
+        }
+
+        if (!response.ok) {
+            return { success: false, error: result.error || `HTTP ${response.status}` };
+        }
+        return result;
+    }
+
+    function storeCurrentSession(user) {
+        const sessionUser = { ...(user || {}) };
+        delete sessionUser.pw;
+        sessionStorage.setItem('scorequery_session', JSON.stringify(sessionUser));
+    }
+
     // ── DOM References ──
     const modeSection    = document.getElementById('mode-section');
     const adminSection   = document.getElementById('admin-section');
@@ -182,6 +246,11 @@
         const sess = sessionStorage.getItem('scorequery_session');
         if (sess) {
             const user = JSON.parse(sess);
+            if (!user.pw) {
+                sessionStorage.removeItem('scorequery_session');
+                handleLogoutAction();
+                return;
+            }
             currentUser = user;
             if (user.isMaster) {
                 showMasterDashboard();
@@ -452,6 +521,10 @@
                                 <label>구글 앱스 스크립트(GAS) Web App URL</label>
                                 <input type="text" id="drawer-gas-url" class="drawer-input" placeholder="https://script.google.com/macros/s/.../exec">
                             </div>
+                            <div class="drawer-form-group">
+                                <label>성적 조회 API URL</label>
+                                <input type="text" id="drawer-api-url" class="drawer-input" placeholder="https://your-scorequery-api.example.com">
+                            </div>
                             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 20px;">
                                 <button id="drawer-test-gas-btn" class="drawer-btn-secondary" style="flex: 1;">⚡ 연동 테스트</button>
                                 <span id="drawer-gas-test-badge" style="display: none;"></span>
@@ -465,8 +538,9 @@
                                 </div>
                                 <div style="display: flex; flex-direction: column; gap: 6px;">
                                     <div><strong>• GAS (구글 앱스 스크립트)</strong><br>구글 스프레드시트를 클라우드 DB처럼 호출하기 위한 전용 중계 API URL입니다.</div>
-                                    <div><strong>• 연동 테스트</strong><br>입력한 API URL이 정상 작동하고 데이터 읽기/쓰기가 올바르게 연결되는지 사전에 검증합니다.</div>
-                                    <div><strong>• 데이터베이스 설정 저장</strong><br>검증 완료된 GAS 주소를 계정에 매핑하여 성적 공시 및 실시간 백업에 자동으로 활용합니다.</div>
+                                    <div><strong>• 성적 조회 API</strong><br>공개 학생 화면이 성적 데이터를 직접 들고 있지 않고 서버에 조회하도록 연결하는 HTTPS API URL입니다.</div>
+                                    <div><strong>• 연동 테스트</strong><br>입력한 GAS URL이 정상 작동하고 데이터 읽기/쓰기가 올바르게 연결되는지 사전에 검증합니다.</div>
+                                    <div><strong>• 데이터베이스 설정 저장</strong><br>검증 완료된 GAS/API 주소를 public-config.json에 반영하여 승인 및 학생 조회에 활용합니다.</div>
                                 </div>
                             </div>
                         </div>
@@ -620,7 +694,7 @@
 
                     currentUser.name = nameVal;
                     currentUser.phone = phoneVal;
-                    sessionStorage.setItem('scorequery_session', JSON.stringify(currentUser));
+                    storeCurrentSession(currentUser);
 
                     const mainProfName = document.getElementById('prof-name');
                     const mainProfPhone = document.getElementById('prof-phone');
@@ -701,7 +775,7 @@
                 localStorage.setItem('scorequery_users', JSON.stringify(users));
 
                 currentUser.pw = newHashed;
-                sessionStorage.setItem('scorequery_session', JSON.stringify(currentUser));
+                storeCurrentSession(currentUser);
 
                 alert('🔑 비밀번호가 성공적으로 변경되었습니다.');
                 closeDrawer();
@@ -713,11 +787,13 @@
 
         // ── 3. 데이터베이스 연동 설정 바인딩 ──
         const gasUrlInput = document.getElementById('drawer-gas-url');
+        const apiUrlInput = document.getElementById('drawer-api-url');
         const testGasBtn = document.getElementById('drawer-test-gas-btn');
         const gasTestBadge = document.getElementById('drawer-gas-test-badge');
         const saveGasBtn = document.getElementById('drawer-save-gas-btn');
 
         gasUrlInput.value = localStorage.getItem('scorequery_gas_url') || '';
+        if (apiUrlInput) apiUrlInput.value = localStorage.getItem('scorequery_api_url') || '';
 
         // 연동 테스트 기능
         testGasBtn.onclick = async () => {
@@ -758,14 +834,18 @@
         // 설정 저장 기능
         saveGasBtn.onclick = async () => {
             const saveUrl = gasUrlInput.value.trim();
+            const saveApiUrl = apiUrlInput ? apiUrlInput.value.trim().replace(/\/+$/, '') : '';
             localStorage.setItem('scorequery_gas_url', saveUrl);
+            localStorage.setItem('scorequery_api_url', saveApiUrl);
             await autoSavePublicConfigToServer(saveUrl);
             
             // 마스터 대시보드 뷰 주소 영역도 동기화
             const mainGasInput = document.getElementById('gas-url-input');
             if (mainGasInput) mainGasInput.value = saveUrl;
+            const mainApiInput = document.getElementById('api-url-input');
+            if (mainApiInput) mainApiInput.value = saveApiUrl;
 
-            alert('⚙️ 구글 스프레드시트 데이터베이스 연동 주소가 저장되었습니다.');
+            alert('⚙️ 공개 연동 URL 설정이 저장되었습니다.');
             closeDrawer();
         };
 
@@ -1286,7 +1366,7 @@
             <div class="complete-summary-group">
                 <div class="complete-summary-title">추가 필드</div>
                 <div class="complete-summary-items">
-                    <div class="complete-summary-item"><span class="label">📋 상대평가제외</span><span class="value">외국인 / 만학도 / 장애인</span></div>
+                    <div class="complete-summary-item"><span class="label">📋 상대평가제외</span><span class="value">제외사유 / 가산메모 자동 반영</span></div>
                     <div class="complete-summary-item"><span class="label">⭐ 특별점수</span><span class="value">100점 초과 가능 · 총점 포함</span></div>
                 </div>
             </div>
@@ -1601,13 +1681,13 @@
         // 헤더 행
         const baseHeaders = ['분반', '소속', '학년', '학번', '성명', '전화번호'];
         const evalHeaders = evaluation.map(e => `${e.label}(${e.ratio}%)`);
-        const headers = [...baseHeaders, ...evalHeaders, '가산점', '가산메모', '특별점수', '특별점수메모'];
+        const headers = [...baseHeaders, ...evalHeaders, '가산점', '가산메모', '상대평가제외사유', '특별점수', '특별점수메모'];
 
         // 샘플 데이터 행 (3개 예시)
         const sampleRowsRaw = [
-            { classNum: 1, dept: '경영학과', year: 3, studentId: '20240001', name: '홍길동', phone: '010-1234-5678', scoreFactor: 0.95, extra: 5, extraMemo: '경진대회 수상', special: 3, specialMemo: '우수 참여자' },
-            { classNum: 1, dept: '경영학과', year: 2, studentId: '20240002', name: '김영희', phone: '010-2345-6789', scoreFactor: 0.8, extra: 0, extraMemo: '', special: 0, specialMemo: '' },
-            { classNum: 2, dept: '경영학과', year: 4, studentId: '20240003', name: '이철수', phone: '010-3456-7890', scoreFactor: 0.9, extra: 2, extraMemo: '질문왕', special: 0, specialMemo: '' },
+            { classNum: 1, dept: '경영학과', year: 3, studentId: '20240001', name: '홍길동', phone: '010-1234-5678', scoreFactor: 0.95, extra: 5, extraMemo: '경진대회 수상', excludeReason: '', special: 3, specialMemo: '우수 참여자' },
+            { classNum: 1, dept: '경영학과', year: 2, studentId: '20240002', name: '김영희', phone: '010-2345-6789', scoreFactor: 0.8, extra: 0, extraMemo: '', excludeReason: '외국인', special: 0, specialMemo: '' },
+            { classNum: 2, dept: '경영학과', year: 4, studentId: '20240003', name: '이철수', phone: '010-3456-7890', scoreFactor: 0.9, extra: 2, extraMemo: '질문왕', excludeReason: '', special: 0, specialMemo: '' },
         ];
 
         const evalScoresList = sampleRowsRaw.map(row => {
@@ -1629,6 +1709,7 @@
                 ...scores,
                 row.extra || '',
                 row.extraMemo,
+                row.excludeReason,
                 row.special || '',
                 row.specialMemo
             ];
@@ -1641,6 +1722,7 @@
         // 열 너비 설정
         const colWidths = headers.map(h => {
             if (h === '학번' || h === '전화번호') return { wch: 16 };
+            if (h === '상대평가제외사유') return { wch: 18 };
             if (h === '성명' || h === '이름' || h === '소속' || h === '학과' || h === '특별점수메모' || h === '가산메모') return { wch: 12 };
             return { wch: 10 };
         });
@@ -1653,6 +1735,14 @@
             if (!ws[extraCellRef].c) ws[extraCellRef].c = [];
             ws[extraCellRef].c.push({ a: 'ScoreQuery', t: '가산 항목이 있을 때 부여\n총합에 포함됩니다', s: { sz: 10 } });
             ws[extraCellRef].c.hidden = true;
+        }
+
+        const extraMemoColIdx = headers.indexOf('가산메모');
+        if (extraMemoColIdx >= 0) {
+            const extraMemoCellRef = XLSX.utils.encode_cell({ r: 0, c: extraMemoColIdx });
+            if (!ws[extraMemoCellRef].c) ws[extraMemoCellRef].c = [];
+            ws[extraMemoCellRef].c.push({ a: 'ScoreQuery', t: '입력된 내용은 상대평가 제외 사유에 자동 반영됩니다', s: { sz: 10 } });
+            ws[extraMemoCellRef].c.hidden = true;
         }
 
         // 특별점수 열 셀 코멘트 추가
@@ -1687,8 +1777,9 @@
 
         try {
             const dataObj = JSON.parse(rawData);
-            // 최신 GAS URL과 교수 정보 반영
+            // 최신 공개 연동 URL과 교수 정보 반영
             dataObj.gas_url = localStorage.getItem('scorequery_gas_url') || '';
+            dataObj.api_url = localStorage.getItem('scorequery_api_url') || '';
             if (currentUser) {
                 dataObj.professor = {
                     name: currentUser.name,
@@ -1855,23 +1946,13 @@
         if (!dataObj) return { success: false, error: 'No data' };
 
         try {
-            const serverOrigin = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? window.location.origin : 'http://127.0.0.1:5000';
-            const response = await fetch(`${serverOrigin}/api/save_data`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(dataObj)
-            });
-            if (response.ok) {
-                const result = await response.json();
+            const result = await postLocalAdminJson('/api/save_data', dataObj);
+            if (result.success) {
                 console.log('[ScoreQuery] Auto-save success:', result.message);
-                return { success: true, message: result.message };
             } else {
-                const errData = await response.json().catch(() => ({}));
-                console.warn('[ScoreQuery] Auto-save failed on server:', errData.error);
-                return { success: false, error: errData.error || 'Server error' };
+                console.warn('[ScoreQuery] Auto-save failed on server:', result.error);
             }
+            return result;
         } catch (e) {
             console.warn('[ScoreQuery] Auto-save connection failed (Flask server might be offline):', e);
             return { success: false, error: 'Connection failed' };
@@ -3241,7 +3322,7 @@
             dept:        find(['소속', '학과', '학부', '전공']),
             classNum:    find(['분반', '반']),
             phone:       find(['전화', '핸드폰', '연락처', '휴대폰']),
-            exclude:     find(['상대평가제외사유', '상대평가제외', '제외']),
+            exclude:     find(['상대평가제외사유', '상대평가 제외 사유', '상대평가제외', '상대평가 제외', '제외사유', '제외']),
             extra:       find(['가산점']),
             extraMemo:   find(['가산메모']),
             special:     find(['특별점수', '특별']),
@@ -3498,7 +3579,7 @@
             const r = e.ratio > 0 ? `(${e.ratio}%)` : '';
             return `${e.label}${r}`;
         });
-        const tailHeaders = ['가산점', '가산메모', '특별점수', '특별점수메모', '합계', '석차'];
+        const tailHeaders = ['가산점', '가산메모', '상대평가제외사유', '특별점수', '특별점수메모', '합계', '석차'];
         const sampleHeaders = [...baseHeaders, ...evalHeaders, ...tailHeaders];
 
         // 각 행을 샘플 규격으로 변환
@@ -3525,6 +3606,7 @@
             const extraScore = isNaN(extraVal) ? 0 : extraVal;
             out['가산점'] = mapping.extra ? (row[mapping.extra] ?? '') : '';
             out['가산메모'] = mapping.extraMemo ? (row[mapping.extraMemo] ?? '') : '';
+            out['상대평가제외사유'] = mapping.exclude ? (row[mapping.exclude] ?? '') : '';
 
             const specialVal = mapping.special ? parseFloat(row[mapping.special]) : 0;
             const specialScore = isNaN(specialVal) ? 0 : specialVal;
@@ -3581,6 +3663,7 @@
         // 열 너비 설정
         ws['!cols'] = pendingConvertedHeaders.map(h => {
             if (h === '학번' || h === '전화번호') return { wch: 16 };
+            if (h === '상대평가제외사유') return { wch: 18 };
             if (h === '성명' || h === '이름' || h === '소속' || h === '학과' || h === '특별점수메모' || h === '가산메모') return { wch: 12 };
             return { wch: 10 };
         });
@@ -3958,6 +4041,7 @@
             },
             access_code: accessCode,
             gas_url: localStorage.getItem('scorequery_gas_url') || '',
+            api_url: localStorage.getItem('scorequery_api_url') || '',
             evaluation: adminConfig.evaluation,
             students,
             class_avg: classAvg,
@@ -4222,86 +4306,35 @@
 
     // ── 마스터/교수 회원 DB 초기화 ──
     async function initUsersDB() {
-        // 기존 가입 정보를 1회만 강제 초기화하여 마스터 계정만 남김
-        const resetKey = 'scorequery_reset_20260617_v2';
-        if (!localStorage.getItem(resetKey)) {
-            localStorage.removeItem('scorequery_users');
+        const knownDefaultHashes = new Set([
+            '84668ba4df93b3f27df7a360fde2f72c4ad3d9020970a24c2ed2b144bd3540b6',
+            'e1fc0011b9b5764beb72e5ecc04625fb77d954041aa442dd943b230a55a45e1d'
+        ]);
+        const knownDefaultEmails = new Set([
+            'armour@tu.ac.kr',
+            'changgab.seo@gmail.com',
+            'armour@g.tu.ac.kr'
+        ]);
+
+        let users = [];
+        try {
+            users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+            if (!Array.isArray(users)) users = [];
+        } catch {
+            users = [];
+        }
+
+        const filtered = users.filter(user => {
+            const email = String(user.email || '').toLowerCase();
+            const hash = String(user.pw || '');
+            return !(knownDefaultEmails.has(email) && knownDefaultHashes.has(hash));
+        });
+
+        if (filtered.length !== users.length) {
             sessionStorage.removeItem('scorequery_session');
-            localStorage.setItem(resetKey, 'true');
         }
-
-        let users = localStorage.getItem('scorequery_users');
-        if (!users) {
-            // 마스터 계정 기본 탑재 (armour@tu.ac.kr / armour1234)
-            const masterPwHashed = await sha256('armour1234');
-            const altMasterPwHashed = await sha256('&armour&1831');
-            const now = new Date().toISOString();
-            const defaultUsers = [
-                {
-                    name: '서창갑',
-                    univ: '동명대학교',
-                    dept: '경영학과',
-                    email: 'armour@tu.ac.kr',
-                    pw: masterPwHashed,
-                    phone: '010-9756-5400',
-                    status: 'approved',
-                    isMaster: true,
-                    regDate: now,
-                    approveDate: now,
-                    withdrawReqDate: '',
-                    withdrawApproveDate: ''
-                },
-                {
-                    name: '서창갑',
-                    univ: '동명대학교',
-                    dept: '경영학과',
-                    email: 'changgab.seo@gmail.com',
-                    pw: altMasterPwHashed,
-                    phone: '010-9756-5400',
-                    status: 'approved',
-                    isMaster: false,
-                    regDate: now,
-                    approveDate: now,
-                    withdrawReqDate: '',
-                    withdrawApproveDate: ''
-                },
-                {
-                    name: '서창갑',
-                    univ: '동명대학교',
-                    dept: '경영학과',
-                    email: 'armour@g.tu.ac.kr',
-                    pw: altMasterPwHashed,
-                    phone: '010-9756-5400',
-                    status: 'approved',
-                    isMaster: true,
-                    regDate: now,
-                    approveDate: now,
-                    withdrawReqDate: '',
-                    withdrawApproveDate: ''
-                }
-            ];
-            localStorage.setItem('scorequery_users', JSON.stringify(defaultUsers));
-        } else {
-            // 기존 데이터의 마스터 이름이 '아모르'인 경우 '서창갑'으로 현행화
-            try {
-                let parsed = JSON.parse(users);
-                let updated = false;
-                parsed.forEach(u => {
-                    if ((u.isMaster || u.email === 'armour@tu.ac.kr') && u.name === '아모르') {
-                        u.name = '서창갑';
-                        updated = true;
-                    }
-                });
-                if (updated) {
-                    localStorage.setItem('scorequery_users', JSON.stringify(parsed));
-                }
-            } catch (e) {
-                console.error('Failed to parse users for update:', e);
-            }
-        }
+        localStorage.setItem('scorequery_users', JSON.stringify(filtered));
     }
-
-    // ── 구글 앱스 스크립트(GAS) 원격 DB 연동 헬퍼 함수 ──
     async function callGasApi(action, payload, auth) {
         const gasUrl = localStorage.getItem('scorequery_gas_url');
         if (!gasUrl) {
@@ -4369,6 +4402,10 @@
                     localStorage.setItem('scorequery_gas_url', config.gas_url);
                     console.log('[ScoreQuery] Public GAS URL loaded from server:', config.gas_url);
                 }
+                if (config && config.api_url) {
+                    localStorage.setItem('scorequery_api_url', config.api_url);
+                    console.log('[ScoreQuery] Public API URL loaded from server:', config.api_url);
+                }
             }
         } catch (e) {
             console.warn('[ScoreQuery] Failed to load public config from server:', e);
@@ -4377,23 +4414,17 @@
 
     async function autoSavePublicConfigToServer(gasUrl) {
         try {
-            const serverOrigin = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? window.location.origin : 'http://127.0.0.1:5000';
-            const response = await fetch(`${serverOrigin}/api/save_public_config`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ gas_url: gasUrl })
+            const apiUrl = (localStorage.getItem('scorequery_api_url') || '').trim();
+            const result = await postLocalAdminJson('/api/save_public_config', {
+                gas_url: gasUrl,
+                api_url: apiUrl
             });
-            if (response.ok) {
-                const result = await response.json();
+            if (result.success) {
                 console.log('[ScoreQuery] Auto-save public config success:', result.message);
-                return { success: true, message: result.message };
             } else {
-                const errData = await response.json().catch(() => ({}));
-                console.warn('[ScoreQuery] Auto-save public config failed on server:', errData.error);
-                return { success: false, error: errData.error || 'Server error' };
+                console.warn('[ScoreQuery] Auto-save public config failed on server:', result.error);
             }
+            return result;
         } catch (e) {
             console.warn('[ScoreQuery] Auto-save public config connection failed (Flask server might be offline):', e);
             return { success: false, error: 'Connection failed' };
@@ -4482,6 +4513,10 @@
             const sess = sessionStorage.getItem('scorequery_session');
             if (sess) {
                 const user = JSON.parse(sess);
+                if (!user.pw) {
+                    sessionStorage.removeItem('scorequery_session');
+                    return;
+                }
                 currentUser = user;
                 if (user.isMaster) {
                     showMasterDashboard();
@@ -4603,16 +4638,18 @@
                         univ: gasUser.univ,
                         dept: gasUser.dept,
                         email: gasUser.email,
-                        pw: pwHashed, // 로그인 성공했으므로 로컬 저장용으로 해시 저장
+                        pw: pwHashed,
                         phone: gasUser.phone,
                         status: gasUser.status,
                         isMaster: gasUser.isMaster === true || gasUser.isMaster === 'true',
                         regDate: gasUser.regDate
                     };
+                    const cachedUser = { ...syncedUser };
+                    delete cachedUser.pw;
                     if (idx >= 0) {
-                        users[idx] = syncedUser;
+                        users[idx] = cachedUser;
                     } else {
-                        users.push(syncedUser);
+                        users.push(cachedUser);
                     }
                     localStorage.setItem('scorequery_users', JSON.stringify(users));
                     user = syncedUser;
@@ -4636,7 +4673,7 @@
 
         if (user.isMaster) {
             currentUser = user;
-            sessionStorage.setItem('scorequery_session', JSON.stringify(user));
+            storeCurrentSession(user);
             showMasterDashboard();
             return;
         }
@@ -4660,7 +4697,7 @@
         }
 
         currentUser = user;
-        sessionStorage.setItem('scorequery_session', JSON.stringify(user));
+        storeCurrentSession(user);
 
         document.getElementById('prof-name').value = user.name;
         document.getElementById('prof-email').value = user.email;
@@ -4953,16 +4990,6 @@
             return;
         }
 
-        const pwHashed = await sha256(pw);
-        const newUser = {
-            name, univ, dept, email,
-            pw: pwHashed,
-            phone,
-            status: 'pending',
-            isMaster: false,
-            regDate: new Date().toISOString()
-        };
-
         const gasUrl = localStorage.getItem('scorequery_gas_url');
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         if (!gasUrl && !isLocalhost) {
@@ -4970,6 +4997,20 @@
             errorEl.style.display = 'block';
             return;
         }
+
+        const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+        const isLocalBootstrap = !gasUrl && isLocalhost && users.length === 0;
+        const now = new Date().toISOString();
+        const pwHashed = await sha256(pw);
+        const newUser = {
+            name, univ, dept, email,
+            pw: pwHashed,
+            phone,
+            status: isLocalBootstrap ? 'approved' : 'pending',
+            isMaster: isLocalBootstrap,
+            regDate: now,
+            approveDate: isLocalBootstrap ? now : ''
+        };
 
         if (gasUrl) {
             try {
@@ -4983,7 +5024,6 @@
         }
 
         // 로컬 스토리지 캐시 업데이트 및 재가입 처리
-        const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
         const existingUserIdx = users.findIndex(u => u.email === email);
         if (existingUserIdx >= 0) {
             users[existingUserIdx] = newUser;
@@ -4993,6 +5033,11 @@
         localStorage.setItem('scorequery_users', JSON.stringify(users));
 
         currentUser = newUser;
+        if (isLocalBootstrap) {
+            storeCurrentSession(newUser);
+            showMasterDashboard();
+            return;
+        }
         showPendingView(newUser);
     }
 
@@ -5056,28 +5101,38 @@
             mainContainer.classList.add('wide-layout');
         }
 
-        // GAS URL 로드 및 바인딩
+        // 공개 연동 URL 로드 및 바인딩
         const gasInput = document.getElementById('gas-url-input');
+        const apiInput = document.getElementById('api-url-input');
         const saveBtn = document.getElementById('save-gas-url-btn');
         const loadGasBtn = document.getElementById('load-gas-url-btn');
         if (gasInput) {
             gasInput.value = localStorage.getItem('scorequery_gas_url') || '';
+            if (apiInput) apiInput.value = localStorage.getItem('scorequery_api_url') || '';
             if (saveBtn) {
                 saveBtn.onclick = () => {
                     const url = gasInput.value.trim();
+                    const apiUrl = apiInput ? apiInput.value.trim().replace(/\/+$/, '') : '';
                     localStorage.setItem('scorequery_gas_url', url);
+                    localStorage.setItem('scorequery_api_url', apiUrl);
                     autoSavePublicConfigToServer(url);
-                    alert(url ? '✅ 승인 요청 구글 폼 URL이 저장되었습니다.' : 'ℹ️ 승인 요청 구글 폼 URL이 삭제되었습니다.');
+                    alert((url || apiUrl) ? '✅ 공개 연동 URL 설정이 저장되었습니다.' : 'ℹ️ 공개 연동 URL 설정이 삭제되었습니다.');
                 };
             }
             if (loadGasBtn) {
                 loadGasBtn.onclick = async () => {
                     const loadedUrl = await syncGasUrlFromServer();
+                    const loadedApiUrl = localStorage.getItem('scorequery_api_url') || '';
                     if (loadedUrl) {
                         gasInput.value = loadedUrl;
-                        alert('✅ 로컬 저장소에서 승인 요청 구글 폼 URL을 성공적으로 가져왔습니다.');
+                        if (apiInput) apiInput.value = loadedApiUrl;
+                        alert('✅ 로컬 저장소에서 공개 연동 URL을 성공적으로 가져왔습니다.');
+                    } else if (loadedApiUrl) {
+                        if (apiInput) apiInput.value = loadedApiUrl;
+                        alert('✅ 로컬 저장소에서 성적 조회 API URL을 성공적으로 가져왔습니다.');
                     } else {
-                        alert('ℹ️ 로컬 저장소에 설정된 승인 요청 구글 폼 URL이 없습니다.');
+                        if (apiInput) apiInput.value = '';
+                        alert('ℹ️ 로컬 저장소에 설정된 공개 연동 URL이 없습니다.');
                     }
                 };
             }
@@ -6333,7 +6388,7 @@
 
             const percent = ((viewedCount / totalCount) * 100).toFixed(1);
             widget.style.display = 'block';
-            textEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>현재 수강생 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(열람율 <strong>${percent}%</strong>)이 성적을 확인했습니다.`;
+            textEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>이 브라우저에 저장된 열람 기록 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(참고율 <strong>${percent}%</strong>)이 확인되었습니다.<br><span style="font-size:11px;color:var(--text-muted);">정확한 전체 열람률은 서버/GAS 로그 수집 기능을 별도로 연결해야 합니다.</span>`;
             fillEl.style.width = `${percent}%`;
 
             // 자세히 보기 버튼 표시 처리
@@ -6474,7 +6529,7 @@
             const unviewedCount = totalCount - viewedCount;
             const percent = ((viewedCount / totalCount) * 100).toFixed(1);
 
-            summaryEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>현재 수강생 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(열람율 <strong>${percent}%</strong>)이 성적을 확인했습니다.`;
+            summaryEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>이 브라우저에 저장된 열람 기록 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(참고율 <strong>${percent}%</strong>)이 확인되었습니다.<br><span style="font-size:11px;color:var(--text-muted);">정확한 전체 열람률은 서버/GAS 로그 수집 기능을 별도로 연결해야 합니다.</span>`;
             
             const tabAll = document.getElementById('tab-filter-all');
             const tabViewed = document.getElementById('tab-filter-viewed');

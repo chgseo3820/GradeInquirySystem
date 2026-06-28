@@ -10,6 +10,7 @@
 
 | 변수 | 용도 | 필수 |
 |---|---|---|
+| `SCOREQUERY_ACCESS_CODE` | 학생 조회용 6자리 접속 비밀번호 | `/api/score` 운영 시 필수 |
 | `SCOREQUERY_DATA_PASSPHRASE` | `docs/data.enc.json` 암호화/복호화 패스프레이즈 | 빌드/저장 시 필수 |
 | `SCOREQUERY_ADMIN_TOKEN` | 로컬 Flask `/api/save_*` 관리자 토큰 | 관리자 API 사용 시 필수 |
 | `SCOREQUERY_HOST` | Flask 바인딩 호스트 (기본 `127.0.0.1`) | 선택 |
@@ -24,6 +25,8 @@
 - `deploy.bat`는 `gh-pages` 브랜치 루트 배포가 필요할 때만 사용합니다. **두 방식을 동시에 사용하지 말고 하나만 운영 기준으로 정해 사용하세요.**
 - 교수/학생 정보가 들어 있는 성적 데이터는 평문 `data.json`으로 배포하지 않습니다.
 - 로컬 저장이 필요한 경우 `SCOREQUERY_DATA_PASSPHRASE` 환경변수를 설정한 뒤 암호화된 `docs/data.enc.json`만 생성합니다.
+- 공개 학생 조회는 `docs/public-config.json`의 `api_url`을 통해 서버 API로 처리합니다.
+- `api_url`은 운영 배포에서는 HTTPS 주소여야 하며, 로컬 개발 주소는 `http://127.0.0.1` 또는 `http://localhost`만 허용됩니다.
 
 ## GitHub Pages 설정
 
@@ -41,6 +44,16 @@
 3. Excel 업로드 후 파일 검증 보고서를 확인합니다.
 4. 총점 불일치, 점수 결측, 인증정보 누락 항목을 확인합니다.
 5. 공시 기간을 설정하고 최종 확인 창에서 학생 수와 검증 경고를 확인한 뒤 공시합니다.
+
+## 상대평가 제외 처리
+
+상대평가 제외 사유는 아래 항목을 모두 합쳐 반영합니다.
+
+- `상대평가제외사유` 컬럼
+- `가산메모` 컬럼
+- `비고` 컬럼에 포함된 `상대평가제외` 문구
+
+따라서 `가산메모`에 내용이 있는 학생은 상대평가 배분 대상에서 제외되고, 최종 조정 표에는 통합 사유가 표시됩니다.
 
 ## 개인정보 주의
 
@@ -76,6 +89,7 @@ python secure_files.py decrypt docs/data.enc.json --output-dir restored
 
 - 기본 바인딩은 `127.0.0.1`로 외부 네트워크에서 접근할 수 없습니다.
 - `/api/save_data`, `/api/save_public_config`는 `SCOREQUERY_ADMIN_TOKEN` 헤더(`X-Admin-Token`) 또는 요청 본문의 `admin_token` 필드가 일치할 때만 동작합니다.
+- `/api/score`는 `SCOREQUERY_ACCESS_CODE` 또는 `config.json`의 `access_code`가 없으면 조회를 거부합니다.
 - `/api/score`는 IP당 60초에 30회로 요청 빈도가 제한되어 학번 무차별 대입을 완화합니다.
 - 다른 PC에서 접근이 필요하면 `SCOREQUERY_HOST`, `SCOREQUERY_ALLOWED_ORIGINS` 환경변수를 명시적으로 설정하고, 방화벽/HTTPS를 별도로 적용하세요.
 
@@ -103,7 +117,21 @@ python secure_files.py decrypt docs/data.enc.json --output-dir restored
 
 ## GAS 재배포 안내
 
-이 코드는 `docs/static/gas_db_script.js`의 GAS 백엔드에 **새로운 액션 2개**(`request_pw_reset`, `confirm_pw_reset`)와 **Users 시트 컬럼 2개**(`resetTokenHash`, `resetTokenExp`)를 추가합니다. 기존에 GAS 웹앱을 배포해 두신 경우 아래 절차로 갱신해 주세요.
+이 코드는 `docs/static/gas_db_script.js`의 GAS 백엔드에 **새로운 액션 2개**(`request_pw_reset`, `confirm_pw_reset`)와 **Users 시트 컬럼 2개**(`resetTokenHash`, `resetTokenExp`)를 추가합니다. 또한 기본 마스터 계정을 더 이상 자동 생성하지 않습니다.
+
+최초 배포 전 Apps Script의 Script Properties에 아래 값을 먼저 설정하세요.
+
+- `SCOREQUERY_MASTER_EMAIL`
+- `SCOREQUERY_MASTER_PW_HASH`
+- 선택: `SCOREQUERY_MASTER_NAME`, `SCOREQUERY_MASTER_UNIV`, `SCOREQUERY_MASTER_DEPT`, `SCOREQUERY_MASTER_PHONE`
+
+마스터 비밀번호 해시 생성 예시:
+
+```powershell
+python -c "import hashlib,getpass; print(hashlib.sha256(getpass.getpass('master password: ').encode('utf-8')).hexdigest())"
+```
+
+기존에 GAS 웹앱을 배포해 두신 경우 아래 절차로 갱신해 주세요.
 
 1. 구글 스프레드시트 → **확장 프로그램 → Apps Script** 열기
 2. `docs/static/gas_db_script.js`의 **전체 내용을 복사**해 기존 스크립트를 교체
@@ -117,3 +145,4 @@ python secure_files.py decrypt docs/data.enc.json --output-dir restored
 - GitHub Pages 정적 구조에서는 클라이언트가 키 파생 정보를 다루게 되므로, 패스프레이즈가 약하면 사전 공격에 노출될 수 있습니다. 12자 이상의 임의 패스프레이즈 사용을 권장합니다.
 - 동일 학번/전화번호 뒷자리 조합은 항상 같은 해시 키를 생성하므로, 학기 간 데이터를 다른 저장소/디렉토리로 분리하는 것이 좋습니다.
 - 비밀번호는 SHA-256 단일 해시로 저장됩니다(salt/iteration 없음). 마이그레이션 호환을 위해 유지된 정책이며, 강한 비밀번호 사용을 권장합니다.
+- 열람률은 현재 브라우저에 저장된 기록 기준 참고값입니다. 정확한 전체 열람률은 서버 또는 GAS 조회 로그 수집이 필요합니다.
