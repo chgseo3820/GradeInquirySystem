@@ -174,8 +174,9 @@
         document.querySelectorAll('.wizard-panel').forEach(p => p.style.display = 'none');
 
         // Show target panel
-        const panelId = step === 4 ? 'wizard-step-complete' : `wizard-step-${step}`;
-        document.getElementById(panelId).style.display = '';
+        const panelId = `wizard-step-${step}`;
+        const targetPanel = document.getElementById(panelId);
+        if (targetPanel) targetPanel.style.display = '';
 
         // Update step indicators
         document.querySelectorAll('.wizard-step').forEach(el => {
@@ -189,15 +190,22 @@
             c.classList.toggle('completed', i + 1 < step);
         });
 
-        // Step 4 = complete (레이아웃 확장 추가)
-        if (step === 4) {
+        // Step >= 4 = 레이아웃 확장 추가
+        if (step >= 4) {
             adminSection.classList.add('wide-layout');
             if (mainContainer) {
                 mainContainer.classList.add('wide-layout');
             }
-            renderCourseSelector();
-            renderCompleteSummary();
-            renderViewStats();
+            if (step === 4) {
+                renderCourseSelector();
+                renderCompleteSummary();
+                renderViewStats();
+            } else if (step === 5) {
+                showGradingSubPanel('a');
+            } else if (step === 6) {
+                renderViewStats();
+                showPublishArea();
+            }
         } else {
             // 다른 단계로 복귀 시 마스터 패널이 활성화되어 있지 않다면 wide-layout 제거
             const masterPanel = document.getElementById('admin-master-panel');
@@ -2000,6 +2008,618 @@
     }
 
     // ──────────────────────────────────────────────
+    // 학점 산출 및 수동 조정 파이프라인 (Step 5)
+    // ──────────────────────────────────────────────
+    function showGradingSubPanel(panelChar) {
+        document.querySelectorAll('.grading-sub-panel').forEach(p => p.style.display = 'none');
+        const target = document.getElementById(`grading-panel-${panelChar}`);
+        if (target) target.style.display = '';
+
+        if (panelChar === 'a') {
+            renderStep5A();
+        } else if (panelChar === 'b') {
+            renderTieBreakerOptions();
+            setupGradingRulesLimits();
+        } else if (panelChar === 'c') {
+            renderStep5C();
+        }
+    }
+
+    function getActiveEvalItems() {
+        if (pendingUploadData && pendingUploadData.evaluation) {
+            return pendingUploadData.evaluation;
+        }
+        return adminConfig.evaluation;
+    }
+
+    function renderStep5A() {
+        const wrap = document.getElementById('raw-scores-table-wrap');
+        if (!wrap || !pendingUploadData) return;
+
+        const studentList = Object.values(pendingUploadData.students);
+        studentList.sort((a, b) => b.total_score - a.total_score);
+
+        const activeEvalItems = getActiveEvalItems();
+
+        let ths = `
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">학번</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">성명</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>
+        `;
+
+        activeEvalItems.forEach(item => {
+            ths += `<th style="padding:10px; border-bottom:1px solid var(--border-glass);">${item.label}</th>`;
+        });
+
+        ths += `
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass); color:#34d399;">가산점</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass); color:#fbbf24;">특별점수</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass); font-weight:700;">합계</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">석차</th>
+        `;
+
+        let trs = '';
+        studentList.forEach(st => {
+            let itemTds = '';
+            activeEvalItems.forEach(item => {
+                const val = st[`${item.id}_score`];
+                itemTds += `<td style="padding:10px; text-align:center;">${val !== null && val !== undefined ? val : '-'}</td>`;
+            });
+
+            trs += `
+                <tr style="border-bottom:1px solid var(--border-glass);">
+                    <td style="padding:10px; text-align:center; color:white;">${st.student_id_masked}</td>
+                    <td style="padding:10px; text-align:center;">${st.name_masked}</td>
+                    <td style="padding:10px; text-align:center;">${st.class_num}반</td>
+                    ${itemTds}
+                    <td style="padding:10px; text-align:center; color:#34d399;">${st.extra_score || 0}</td>
+                    <td style="padding:10px; text-align:center; color:#fbbf24;">${st.special_score || 0}</td>
+                    <td style="padding:10px; text-align:center; font-weight:700; color:white;">${st.total_score}</td>
+                    <td style="padding:10px; text-align:center;">${st.rank || '-'}등</td>
+                </tr>
+            `;
+        });
+
+        wrap.innerHTML = `
+            <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.05); color:var(--text-main); font-weight:600;">
+                        ${ths}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${trs}
+                </tbody>
+            </table>
+        `;
+    }
+
+    function renderTieBreakerOptions() {
+        const container = document.getElementById('tie-breaker-order');
+        if (!container) return;
+
+        const activeEvalItems = getActiveEvalItems();
+        container.innerHTML = '';
+
+        activeEvalItems.forEach((item, idx) => {
+            let defaultPriority = 4;
+            if (item.label.includes('출석')) defaultPriority = 1;
+            else if (item.label.includes('기말')) defaultPriority = 2;
+            else if (item.label.includes('중간')) defaultPriority = 3;
+
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.justifyContent = 'space-between';
+            div.style.padding = '8px 12px';
+            div.style.background = 'rgba(255,255,255,0.01)';
+            div.style.border = '1px solid var(--border-glass)';
+            div.style.borderRadius = '6px';
+
+            let optionsHtml = '';
+            for (let p = 1; p <= activeEvalItems.length; p++) {
+                const selected = p === defaultPriority || (defaultPriority === 4 && p === Math.min(activeEvalItems.length, 4 + idx)) ? 'selected' : '';
+                optionsHtml += `<option value="${p}">${p}순위</option>`;
+            }
+
+            div.innerHTML = `
+                <span style="font-size:13px; color:var(--text-primary); font-weight:600;">${item.icon} ${item.label}</span>
+                <select class="tie-breaker-select" data-eval-id="${item.id}" style="padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); outline:none;">
+                    ${optionsHtml}
+                </select>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function setupGradingRulesLimits() {
+        const evalTypeSelect = document.getElementById('grading-eval-type');
+        const distTypeSelect = document.getElementById('grading-dist-type');
+        const rulesTitle = document.getElementById('grading-rules-title');
+        const rulesWarning = document.getElementById('grading-rules-sum-warning');
+        
+        const inputs = [
+            document.getElementById('grading-val-a'),
+            document.getElementById('grading-val-b'),
+            document.getElementById('grading-val-c'),
+            document.getElementById('grading-val-d')
+        ];
+
+        const fMinscoreCheckbox = document.getElementById('f-rule-minscore');
+        const fMinscoreValInput = document.getElementById('f-rule-minscore-val');
+
+        if (fMinscoreCheckbox && fMinscoreValInput) {
+            // Remove previous listeners if any to avoid duplication
+            const newCheckbox = fMinscoreCheckbox.cloneNode(true);
+            fMinscoreCheckbox.parentNode.replaceChild(newCheckbox, fMinscoreCheckbox);
+            newCheckbox.addEventListener('change', function() {
+                fMinscoreValInput.disabled = !this.checked;
+            });
+        }
+
+        function updateLabels() {
+            const distType = distTypeSelect.value;
+
+            if (distType === 'ratio') {
+                rulesTitle.textContent = '구간별 비율 설정 (총합 100%)';
+                inputs.forEach(input => {
+                    if (input) {
+                        input.max = 100;
+                        input.placeholder = '%';
+                    }
+                });
+                checkRatioSum();
+            } else {
+                rulesTitle.textContent = '구간별 배정 인원 설정 (명)';
+                inputs.forEach(input => {
+                    if (input) {
+                        input.removeAttribute('max');
+                        input.placeholder = '명';
+                    }
+                });
+                if (rulesWarning) rulesWarning.style.display = 'none';
+                const btnRun = document.getElementById('btn-grading-b-run');
+                if (btnRun) btnRun.removeAttribute('disabled');
+            }
+        }
+
+        function checkRatioSum() {
+            if (distTypeSelect.value !== 'ratio') return;
+            const sum = inputs.reduce((acc, input) => acc + (parseFloat(input.value) || 0), 0);
+            const sumSpan = document.getElementById('grading-rules-sum-current');
+            if (sumSpan) sumSpan.textContent = sum;
+
+            const btnRun = document.getElementById('btn-grading-b-run');
+            if (Math.abs(sum - 100) > 0.01) {
+                if (rulesWarning) rulesWarning.style.display = 'block';
+                if (btnRun) btnRun.setAttribute('disabled', 'true');
+            } else {
+                if (rulesWarning) rulesWarning.style.display = 'none';
+                if (btnRun) btnRun.removeAttribute('disabled');
+            }
+        }
+
+        if (evalTypeSelect && distTypeSelect) {
+            // Clone to avoid multiple event registration on going back and forth
+            const newEvalType = evalTypeSelect.cloneNode(true);
+            evalTypeSelect.parentNode.replaceChild(newEvalType, evalTypeSelect);
+            const newDistType = distTypeSelect.cloneNode(true);
+            distTypeSelect.parentNode.replaceChild(newDistType, distTypeSelect);
+
+            newEvalType.addEventListener('change', updateLabels);
+            newDistType.addEventListener('change', updateLabels);
+
+            inputs.forEach(input => {
+                if (input) {
+                    const newInput = input.cloneNode(true);
+                    input.parentNode.replaceChild(newInput, input);
+                    newInput.addEventListener('input', checkRatioSum);
+                }
+            });
+
+            // Re-fetch inputs since they were replaced
+            const reInputs = [
+                document.getElementById('grading-val-a'),
+                document.getElementById('grading-val-b'),
+                document.getElementById('grading-val-c'),
+                document.getElementById('grading-val-d')
+            ];
+            
+            // Re-fetch select elements
+            const reEvalSelect = document.getElementById('grading-eval-type');
+            const reDistSelect = document.getElementById('grading-dist-type');
+
+            reEvalSelect.addEventListener('change', updateLabels);
+            reDistSelect.addEventListener('change', updateLabels);
+            reInputs.forEach(input => {
+                if (input) input.addEventListener('input', checkRatioSum);
+            });
+
+            updateLabels();
+        }
+    }
+
+    function runGradingPipeline() {
+        const evalType = document.getElementById('grading-eval-type').value;
+        const distType = document.getElementById('grading-dist-type').value;
+        
+        const valA = parseFloat(document.getElementById('grading-val-a').value) || 0;
+        const valB = parseFloat(document.getElementById('grading-val-b').value) || 0;
+        const valC = parseFloat(document.getElementById('grading-val-c').value) || 0;
+        const valD = parseFloat(document.getElementById('grading-val-d').value) || 0;
+
+        if (distType === 'ratio') {
+            const sum = valA + valB + valC + valD;
+            if (Math.abs(sum - 100) > 0.01) {
+                alert(`⚠️ 비율의 총합이 100%여야 합니다.\n현재 입력값 합계: ${sum}%`);
+                return;
+            }
+        }
+
+        const fAttendance = document.getElementById('f-rule-attendance').checked;
+        const fMidterm = document.getElementById('f-rule-midterm').checked;
+        const fFinal = document.getElementById('f-rule-final').checked;
+        const fMinscore = document.getElementById('f-rule-minscore').checked;
+        const fMinscoreVal = parseFloat(document.getElementById('f-rule-minscore-val').value) || 60;
+
+        const tieBreakerSelects = document.querySelectorAll('.tie-breaker-select');
+        const tieBreakers = Array.from(tieBreakerSelects).map(select => ({
+            id: select.dataset.evalId,
+            priority: parseInt(select.value)
+        })).sort((a, b) => a.priority - b.priority).map(item => item.id);
+
+        const studentList = Object.values(pendingUploadData.students);
+        const activeEvalItems = getActiveEvalItems();
+
+        studentList.forEach(st => {
+            st.f_reason = null;
+            st.is_f = false;
+            
+            if (fAttendance && st.absences >= 4) {
+                st.is_f = true;
+                st.f_reason = '출석미달';
+            }
+            const midtermCol = activeEvalItems.find(e => e.id === 'midterm');
+            if (midtermCol && fMidterm) {
+                const scoreVal = st[`${midtermCol.id}_score`];
+                if (scoreVal === null || scoreVal === undefined || scoreVal === '') {
+                    st.is_f = true;
+                    st.f_reason = '중간결시';
+                }
+            }
+            const finalCol = activeEvalItems.find(e => e.id === 'final');
+            if (finalCol && fFinal) {
+                const scoreVal = st[`${finalCol.id}_score`];
+                if (scoreVal === null || scoreVal === undefined || scoreVal === '') {
+                    st.is_f = true;
+                    st.f_reason = '기말결시';
+                }
+            }
+            if (fMinscore && st.total_score < fMinscoreVal) {
+                st.is_f = true;
+                st.f_reason = '성적미달';
+            }
+        });
+
+        studentList.forEach(st => {
+            if (st.is_relative_excluded === undefined) {
+                const isExcluded = st.remark && (st.remark.includes('상대평가 제외') || st.remark.includes('상대평가제외'));
+                st.is_relative_excluded = !!isExcluded;
+            }
+        });
+
+        const normalStudents = studentList.filter(st => !st.is_f && !st.is_relative_excluded);
+        const fStudents = studentList.filter(st => st.is_f);
+
+        const sortStudents = (a, b) => {
+            const diff = b.total_score - a.total_score;
+            if (Math.abs(diff) > 0.001) return diff;
+
+            for (const itemId of tieBreakers) {
+                const aScore = a[`${itemId}_score`] || 0;
+                const bScore = b[`${itemId}_score`] || 0;
+                const scoreDiff = bScore - aScore;
+                if (Math.abs(scoreDiff) > 0.001) return scoreDiff;
+            }
+            return 0;
+        };
+
+        normalStudents.sort(sortStudents);
+
+        let currentRank = 1;
+        for (let i = 0; i < normalStudents.length; i++) {
+            if (i > 0 && sortStudents(normalStudents[i], normalStudents[i - 1]) === 0) {
+                normalStudents[i].rank = normalStudents[i - 1].rank;
+            } else {
+                normalStudents[i].rank = String(i + 1);
+            }
+        }
+
+        const N = normalStudents.length;
+        let countA = 0, countB = 0, countC = 0, countD = 0;
+
+        if (distType === 'ratio') {
+            countA = Math.round(N * (valA / 100));
+            countB = Math.round(N * (valB / 100));
+            countC = Math.round(N * (valC / 100));
+            countD = Math.max(0, N - (countA + countB + countC));
+        } else {
+            countA = Math.min(N, valA);
+            countB = Math.min(Math.max(0, N - countA), valB);
+            countC = Math.min(Math.max(0, N - (countA + countB)), valC);
+            countD = Math.max(0, N - (countA + countB + countC));
+        }
+
+        for (let i = 0; i < normalStudents.length; i++) {
+            const st = normalStudents[i];
+            if (i < countA) {
+                st.main_grade = 'A';
+            } else if (i < countA + countB) {
+                st.main_grade = 'B';
+            } else if (i < countA + countB + countC) {
+                st.main_grade = 'C';
+            } else {
+                st.main_grade = 'D';
+            }
+        }
+
+        studentList.forEach(st => {
+            if (st.is_f) {
+                st.grade = 'F';
+                if (st.f_reason === '출석미달') {
+                    st.total_score = 0;
+                } else {
+                    st.total_score = Math.min(59, st.total_score);
+                }
+            } else if (st.is_relative_excluded) {
+                if (st.total_score >= 90) st.grade = 'A0';
+                else if (st.total_score >= 80) st.grade = 'B0';
+                else if (st.total_score >= 70) st.grade = 'C0';
+                else if (st.total_score >= 60) st.grade = 'D0';
+                else st.grade = 'F';
+            } else {
+                const score = st.total_score;
+                if (st.main_grade === 'A') {
+                    st.grade = score >= 95 ? 'A+' : 'A0';
+                } else if (st.main_grade === 'B') {
+                    st.grade = score >= 85 ? 'B+' : 'B0';
+                } else if (st.main_grade === 'C') {
+                    st.grade = score >= 75 ? 'C+' : 'C0';
+                } else if (st.main_grade === 'D') {
+                    st.grade = score >= 65 ? 'D+' : 'D0';
+                }
+            }
+        });
+
+        const targetStats = {
+            A: { targetCount: countA, targetRatio: valA },
+            B: { targetCount: countB, targetRatio: valB },
+            C: { targetCount: countC, targetRatio: valC },
+            D: { targetCount: countD, targetRatio: valD },
+            F: { targetCount: fStudents.length, targetRatio: 0 }
+        };
+        pendingUploadData.targetStats = targetStats;
+        pendingUploadData.distType = distType;
+
+        showGradingSubPanel('c');
+    }
+
+    function updateGradingStats() {
+        if (!pendingUploadData) return;
+        const studentList = Object.values(pendingUploadData.students);
+        const totalN = studentList.length;
+
+        const normalCount = studentList.filter(st => !st.is_f && !st.is_relative_excluded).length;
+
+        const counts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+        studentList.forEach(st => {
+            const main = st.grade ? st.grade[0] : 'F';
+            if (counts[main] !== undefined) {
+                counts[main]++;
+            }
+        });
+
+        const tbody = document.getElementById('grading-stats-table-body');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        const targetStats = pendingUploadData.targetStats || {};
+        const distType = pendingUploadData.distType || 'ratio';
+
+        ['A', 'B', 'C', 'D', 'F'].forEach(grade => {
+            const actual = counts[grade];
+            const actualPct = normalCount > 0 && grade !== 'F'
+                ? ((actual / normalCount) * 100).toFixed(1) + '%'
+                : grade === 'F' ? ((actual / totalN) * 100).toFixed(1) + '%' : '0.0%';
+
+            const target = targetStats[grade] || { targetCount: 0, targetRatio: 0 };
+            
+            let targetText = '';
+            if (grade === 'F') {
+                targetText = '-';
+            } else {
+                targetText = distType === 'ratio'
+                    ? `${target.targetRatio}% (${target.targetCount}명)`
+                    : `${target.targetCount}명`;
+            }
+
+            let statusText = '🟢 일치';
+            let statusColor = '#34d399';
+            
+            if (grade !== 'F') {
+                const targetCount = target.targetCount;
+                if (actual !== targetCount) {
+                    statusText = `⚠️ 편차 (${actual - targetCount > 0 ? '+' : ''}${actual - targetCount}명)`;
+                    statusColor = '#fbbf24';
+                }
+            } else {
+                statusText = '일반 F';
+            }
+
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--border-glass)';
+            tr.innerHTML = `
+                <td style="padding:10px; font-weight:700; color:white;">${grade} 등급</td>
+                <td style="padding:10px; color:var(--text-secondary);">${targetText}</td>
+                <td style="padding:10px; font-weight:700; color:white;">${actual}명</td>
+                <td style="padding:10px; color:var(--text-secondary);">${actualPct}</td>
+                <td style="padding:10px; color:${statusColor}; font-weight:600;">${statusText}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderStep5C() {
+        const wrap = document.getElementById('override-scores-table-wrap');
+        if (!wrap || !pendingUploadData) return;
+
+        const studentList = Object.values(pendingUploadData.students);
+        studentList.sort((a, b) => b.total_score - a.total_score);
+
+        let ths = `
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">학번</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">성명</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass); width: 12%;">총점 조정</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass); width: 18%;">최종 학점</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass); width: 15%;">상대평가 제외</th>
+            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">사유/비고</th>
+        `;
+
+        let trs = '';
+        studentList.forEach(st => {
+            const grades = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F'];
+            let gradeOptions = '';
+            grades.forEach(g => {
+                const selected = st.grade === g ? 'selected' : '';
+                gradeOptions += `<option value="${g}">${g}</option>`;
+            });
+
+            const checkedExclude = st.is_relative_excluded ? 'checked' : '';
+            const checkedF = st.is_f ? ' (자동 F)' : '';
+            const remarkText = st.f_reason ? `🚫 ${st.f_reason}` : (st.remark || '-');
+
+            trs += `
+                <tr style="border-bottom:1px solid var(--border-glass);" data-student-id="${st.student_id_masked}" data-name="${st.name_masked}">
+                    <td style="padding:10px; text-align:center; color:white;">${st.student_id_masked}</td>
+                    <td style="padding:10px; text-align:center;">${st.name_masked}</td>
+                    <td style="padding:10px; text-align:center;">${st.class_num}반</td>
+                    <td style="padding:10px; text-align:center;">
+                        <input type="number" class="override-score-input" value="${st.total_score}" step="0.1" style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                    </td>
+                    <td style="padding:10px; text-align:center;">
+                        <select class="override-grade-select" style="padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); outline:none; font-weight:700;">
+                            ${gradeOptions}
+                        </select>
+                    </td>
+                    <td style="padding:10px; text-align:center;">
+                        <input type="checkbox" class="override-exclude-checkbox" ${checkedExclude} style="cursor:pointer; width:16px; height:16px;">
+                    </td>
+                    <td style="padding:10px; text-align:left; font-size:11px; color:var(--text-secondary);">${remarkText}${checkedF}</td>
+                </tr>
+            `;
+        });
+
+        wrap.innerHTML = `
+            <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.05); color:var(--text-main); font-weight:600;">
+                        ${ths}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${trs}
+                </tbody>
+            </table>
+        `;
+
+        wrap.querySelectorAll('tr[data-student-id]').forEach(tr => {
+            const sid = tr.dataset.studentId;
+            const name = tr.dataset.name;
+
+            const stKey = Object.keys(pendingUploadData.students).find(key => 
+                pendingUploadData.students[key].student_id_masked === sid &&
+                pendingUploadData.students[key].name_masked === name
+            );
+            const st = pendingUploadData.students[stKey];
+
+            tr.querySelector('.override-score-input').addEventListener('input', function() {
+                const val = parseFloat(this.value);
+                if (!isNaN(val)) {
+                    st.total_score = val;
+                    updateGradingStats();
+                }
+            });
+
+            tr.querySelector('.override-grade-select').addEventListener('change', function() {
+                st.grade = this.value;
+                if (st.grade === 'F') {
+                    st.is_f = true;
+                    if (!st.f_reason) st.f_reason = '수동 F';
+                } else {
+                    st.is_f = false;
+                    st.f_reason = null;
+                }
+                updateGradingStats();
+            });
+
+            tr.querySelector('.override-exclude-checkbox').addEventListener('change', function() {
+                st.is_relative_excluded = this.checked;
+                updateGradingStats();
+            });
+        });
+
+        updateGradingStats();
+    }
+
+    function confirmGradingResults() {
+        if (!pendingUploadData) return;
+
+        const { course } = adminConfig;
+        const dataKey = getCourseDataKey(course);
+
+        try {
+            localStorage.setItem(dataKey, JSON.stringify(pendingUploadData));
+            const legacyKey = getCourseDataKeys(course).find(key => key !== dataKey);
+            if (legacyKey) localStorage.removeItem(legacyKey);
+
+            const courseListRaw = localStorage.getItem('scorequery_courses') || '[]';
+            const courseList = JSON.parse(courseListRaw);
+            const exists = courseList.find(c =>
+                c.year === course.year && c.semester === course.semester && c.name === course.name
+            );
+            if (!exists) {
+                courseList.push(withCourseId({
+                    year: course.year,
+                    semester: course.semester,
+                    name: course.name,
+                    professor: currentUser ? { name: currentUser.name, email: currentUser.email } : null
+                }));
+                localStorage.setItem('scorequery_courses', JSON.stringify(courseList));
+            } else if (currentUser) {
+                exists.id = getCourseId(course);
+                exists.professor = { name: currentUser.name, email: currentUser.email };
+                localStorage.setItem('scorequery_courses', JSON.stringify(courseList));
+            }
+
+            localStorage.setItem('scorequery_data', JSON.stringify(pendingUploadData));
+        } catch (e) {
+            alert('⚠️ 데이터 저장 실패 (용량 초과 가능)');
+            return;
+        }
+
+        const studentCount = Object.keys(pendingUploadData.students).length;
+        const classCount = Object.keys(pendingUploadData.class_counts).length;
+
+        showUploadStatus('success',
+            `🎉 성적 데이터가 최종 확정되었습니다!\n` +
+            `학생 ${studentCount}명 · ${classCount}개 분반\n` +
+            `다음 단계에서 공시 기간을 설정하세요.`);
+
+        goToStep(6);
+    }
+
+    // ──────────────────────────────────────────────
     // Excel Upload → data.json 생성
     // ──────────────────────────────────────────────
     function setupUpload() {
@@ -2209,10 +2829,16 @@
             // 확정 클릭
             document.getElementById('pipe-confirm').addEventListener('click', function() {
                 if (!this.classList.contains('active')) return;
-                confirmUpload();
                 this.classList.remove('active');
                 this.classList.add('done');
                 this.textContent = '✅ 확정 완료';
+
+                const nextBtn = document.getElementById('btn-upload-next');
+                if (nextBtn) {
+                    nextBtn.style.display = '';
+                    nextBtn.removeAttribute('disabled');
+                }
+                goToStep(5);
             });
         } else {
             // 비표준: [표준포맷 변환] → [미리보기] → [변환파일 다운로드] → [성적데이터 확정]
@@ -2273,10 +2899,16 @@
             // Step 4: 확정
             document.getElementById('pipe-confirm').addEventListener('click', function() {
                 if (!this.classList.contains('active')) return;
-                confirmUpload();
                 this.classList.remove('active');
                 this.classList.add('done');
                 this.textContent = '✅ 확정 완료';
+
+                const nextBtn = document.getElementById('btn-upload-next');
+                if (nextBtn) {
+                    nextBtn.style.display = '';
+                    nextBtn.removeAttribute('disabled');
+                }
+                goToStep(5);
             });
         }
 
@@ -3181,6 +3813,53 @@
         // Complete actions
         document.getElementById('btn-download-excel').addEventListener('click', downloadSampleExcel);
         document.getElementById('btn-go-home').addEventListener('click', showModeSelection);
+
+        // Step 4 navigation buttons
+        const btnUploadBack = document.getElementById('btn-upload-back');
+        if (btnUploadBack) {
+            btnUploadBack.addEventListener('click', () => goToStep(3));
+        }
+        const btnUploadNext = document.getElementById('btn-upload-next');
+        if (btnUploadNext) {
+            btnUploadNext.addEventListener('click', () => goToStep(5));
+        }
+
+        // Step 5 navigation buttons
+        const btnGradingABack = document.getElementById('btn-grading-a-back');
+        if (btnGradingABack) {
+            btnGradingABack.addEventListener('click', () => goToStep(4));
+        }
+        const btnGradingANext = document.getElementById('btn-grading-a-next');
+        if (btnGradingANext) {
+            btnGradingANext.addEventListener('click', () => showGradingSubPanel('b'));
+        }
+
+        const btnGradingBBack = document.getElementById('btn-grading-b-back');
+        if (btnGradingBBack) {
+            btnGradingBBack.addEventListener('click', () => showGradingSubPanel('a'));
+        }
+        const btnGradingBRun = document.getElementById('btn-grading-b-run');
+        if (btnGradingBRun) {
+            btnGradingBRun.addEventListener('click', runGradingPipeline);
+        }
+
+        const btnGradingCBack = document.getElementById('btn-grading-c-back');
+        if (btnGradingCBack) {
+            btnGradingCBack.addEventListener('click', () => showGradingSubPanel('b'));
+        }
+        const btnGradingCConfirm = document.getElementById('btn-grading-c-confirm');
+        if (btnGradingCConfirm) {
+            btnGradingCConfirm.addEventListener('click', confirmGradingResults);
+        }
+
+        // Step 6 navigation buttons
+        const btnPublishBack = document.getElementById('btn-publish-back');
+        if (btnPublishBack) {
+            btnPublishBack.addEventListener('click', () => {
+                goToStep(5);
+                showGradingSubPanel('c');
+            });
+        }
         
         // 과목 선택 변경
         document.getElementById('select-course').addEventListener('change', (e) => {

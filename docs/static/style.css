@@ -3623,3 +3623,26 @@ select.form-input option {
         font-size: 0.75rem;
     }
 }
+
+/* Grading Override Inputs & Widgets Style */
+.override-score-input,
+.override-grade-select {
+    font-size: 0.75rem;
+    transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+.override-score-input:focus,
+.override-grade-select:focus {
+    border-color: #818cf8 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+.override-exclude-checkbox:checked {
+    accent-color: #10b981;
+}
+
+.tie-breaker-select {
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.tie-breaker-select:focus {
+    border-color: #818cf8 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}

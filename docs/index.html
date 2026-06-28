@@ -591,7 +591,7 @@
                 <div class="wizard-steps" id="wizard-steps">
                     <div class="wizard-step active" data-step="1">
                         <div class="step-circle">1</div>
-                        <span class="step-label">교수정보</span>
+                        <span class="step-label">과목선택</span>
                     </div>
                     <div class="step-connector"></div>
                     <div class="wizard-step" data-step="2">
@@ -602,6 +602,21 @@
                     <div class="wizard-step" data-step="3">
                         <div class="step-circle">3</div>
                         <span class="step-label">평가기준</span>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="wizard-step" data-step="4">
+                        <div class="step-circle">4</div>
+                        <span class="step-label">성적업로드</span>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="wizard-step" data-step="5">
+                        <div class="step-circle">5</div>
+                        <span class="step-label">학점산출</span>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="wizard-step" data-step="6">
+                        <div class="step-circle">6</div>
+                        <span class="step-label">성적공시</span>
                     </div>
                 </div>
 
@@ -794,13 +809,13 @@
                     </div>
                 </div>
 
-                <!-- ── 설정 완료 ── -->
-                <div class="wizard-panel" id="wizard-step-complete" style="display:none;">
+                <!-- ── Step 4: 성적 Excel 업로드 ── -->
+                <div class="wizard-panel" id="wizard-step-4" style="display:none;">
                     <div class="wizard-card">
                         <div class="complete-section">
-                            <div class="complete-icon">🎉</div>
-                            <div class="complete-title">설정이 완료되었습니다</div>
-                            <div class="complete-subtitle">과목을 선택한 후, 샘플 Excel 다운로드 또는 성적 업로드를 진행하세요</div>
+                            <div class="complete-icon">📤</div>
+                            <div class="complete-title">성적 Excel 업로드</div>
+                            <div class="complete-subtitle">학생별 성적 데이터가 포함된 파일을 업로드하세요</div>
 
                             <!-- 과목 선택기 -->
                             <div class="course-selector" id="course-selector">
@@ -810,25 +825,10 @@
                                 </select>
                             </div>
 
-                            <!-- 수강생 열람율 통계 위젯 -->
-                            <div id="course-view-stats-widget" class="stats-widget-card" style="display:none; margin: 16px 0; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-md); text-align: left;">
-                                <div class="stats-widget-header">
-                                    <span style="font-weight: 600; font-size: 13px; color: #38bdf8; display: flex; align-items: center; gap: 8px;">📊 수강생 성적 열람 현황</span>
-                                    <button type="button" id="btn-view-stats-detail" class="stats-detail-link-btn">
-                                        🔍 자세히 보기
-                                    </button>
-                                </div>
-                                <div id="course-view-stats-text" style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
-                                    불러오는 중...
-                                </div>
-                                <div class="progress-bar" style="margin-top: 8px; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
-                                    <div id="course-view-stats-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); transition: width 0.5s ease-out;"></div>
-                                </div>
-                            </div>
 
+                            <!-- 수강생 성적 평가 기준 요약 및 🔑 접속 비밀번호 설정 -->
                             <div class="complete-summary" id="complete-summary"></div>
 
-                            <!-- 🔑 접속 비밀번호 설정 필드 (엑셀 업로드 전 필수 지정) -->
                             <div class="access-code-container">
                                 <div class="access-code-row">
                                     <label for="publish-access-code" class="access-code-label">
@@ -870,45 +870,228 @@
                                     </div>
                                     <div id="upload-preview-table" class="preview-table-wrap" style="display:none;"></div>
                                 </div>
+                            </div>
 
+                            <div class="wizard-nav" style="margin-top: 30px;">
+                                <button type="button" class="btn-back" id="btn-upload-back">← 이전 (평가기준 설정)</button>
+                                <button type="button" class="btn-next" id="btn-upload-next" style="display:none;">다음 (성적 및 학점 산출) →</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
+                <!-- ── Step 5: 학점 산출 파이프라인 ── -->
+                <div class="wizard-panel" id="wizard-step-5" style="display:none;">
+                    <div class="wizard-card">
+                        <div class="wizard-card-title">⚖️ 학점 산출 파이프라인</div>
+                        <div class="wizard-card-subtitle">성적 합계/석차를 검증하고 학점 산출 규칙을 설정합니다</div>
 
-                                <!-- 공시 설정 -->
-                                <div id="publish-area" style="display:none;">
-                                    <div class="publish-card">
-                                        <div class="publish-title">📢 성적 공시 설정</div>
-                                        <div class="publish-status" id="publish-status"></div>
-                                        <div class="publish-form">
-                                            <div class="publish-fields-row">
-                                                <div class="publish-field">
-                                                    <label for="publish-start-datetime">공시 시작 일시</label>
-                                                    <input type="datetime-local" id="publish-start-datetime" class="publish-input">
-                                                </div>
-                                                <div class="publish-field">
-                                                    <label for="publish-end-datetime">공시 종료 일시</label>
-                                                    <input type="datetime-local" id="publish-end-datetime" class="publish-input">
-                                                </div>
-                                            </div>
+                        <!-- Sub-panel 5-A: 합계 및 석차 1차 확인 -->
+                        <div id="grading-panel-a" class="grading-sub-panel">
+                            <div style="font-weight: 600; font-size: 15px; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <span>🔍 1. 성적 합계 및 석차 1차 검증</span>
+                            </div>
+                            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:12px; text-align:left;">
+                                Excel에서 불러온 원본 점수를 기반으로 계산된 1차 총합 및 석차입니다. 계산 기준 수정이 필요하면 이전 단계로 돌아갈 수 있습니다.
+                            </div>
+                            <div class="preview-table-wrap" id="raw-scores-table-wrap" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px; border: 1px solid var(--border-glass); border-radius: 8px;">
+                                <!-- 성적 및 석차 테이블 동적 렌더링 -->
+                            </div>
+                            <div class="wizard-nav" style="margin-top: 20px;">
+                                <button type="button" class="btn-back" id="btn-grading-a-back">← 이전 (Excel 업로드)</button>
+                                <button type="button" class="btn-next" id="btn-grading-a-next">다음 (학점산출 설정) →</button>
+                            </div>
+                        </div>
 
-                                            <div id="publish-access-code-display-row" class="publish-fields-row" style="margin-top: 15px; display: none; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); align-items: center; justify-content: space-between; flex-direction: row;">
-                                                <div style="font-size: 13px; color: var(--text-secondary);">
-                                                    🔑 설정된 접속 비밀번호: <span id="publish-access-code-masked" style="font-weight: 700; color: #f59e0b; font-size: 15px; margin-left: 8px; letter-spacing: 2px;">* * * * * *</span>
-                                                </div>
-                                                <button type="button" id="btn-view-access-code" class="btn-reset-pw" style="padding: 6px 12px; font-size: 12px; margin: 0;">보기 👁</button>
-                                            </div>
-                                            <div class="publish-actions" style="margin-top: 20px;">
-                                                <button class="pipe-btn active" id="btn-publish" style="padding:10px 24px;">📢 공시하기</button>
-                                                <button class="pipe-btn" id="btn-unpublish" style="padding:10px 24px;opacity:0.6;cursor:pointer;">🚫 공시 취소</button>
-                                            </div>
-                                        </div>
+                        <!-- Sub-panel 5-B: 학점 산출 기준 설정 -->
+                        <div id="grading-panel-b" class="grading-sub-panel" style="display:none;">
+                            <div style="font-weight: 600; font-size: 15px; color: #38bdf8; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                <span>⚙️ 2. 학점 산출 기준 및 규칙 설정</span>
+                            </div>
 
+                            <!-- 1. 평가 방식 및 분배 기준 -->
+                            <div class="wizard-form-row" style="margin-bottom: 16px;">
+                                <div class="wizard-form-group">
+                                    <label>평가 방식</label>
+                                    <select id="grading-eval-type" style="width:100%; padding:10px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); outline:none;">
+                                        <option value="relative">상대평가</option>
+                                        <option value="absolute">절대평가</option>
+                                    </select>
+                                </div>
+                                <div class="wizard-form-group">
+                                    <label>분배 기준</label>
+                                    <select id="grading-dist-type" style="width:100%; padding:10px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); outline:none;">
+                                        <option value="ratio">비율 (%)</option>
+                                        <option value="count">인원수 (명)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 2. 구간별 비율/인원 설정 입력 -->
+                            <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
+                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;" id="grading-rules-title">구간별 비율 설정 (총합 100%)</div>
+                                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;">
+                                    <div class="wizard-form-group" style="margin:0;">
+                                        <label style="font-size:11px; color:#60a5fa;">A 등급</label>
+                                        <input type="number" id="grading-val-a" value="30" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                    </div>
+                                    <div class="wizard-form-group" style="margin:0;">
+                                        <label style="font-size:11px; color:#34d399;">B 등급</label>
+                                        <input type="number" id="grading-val-b" value="40" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                    </div>
+                                    <div class="wizard-form-group" style="margin:0;">
+                                        <label style="font-size:11px; color:#fbbf24;">C 등급</label>
+                                        <input type="number" id="grading-val-c" value="20" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                    </div>
+                                    <div class="wizard-form-group" style="margin:0;">
+                                        <label style="font-size:11px; color:#f87171;">D 등급</label>
+                                        <input type="number" id="grading-val-d" value="10" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                    </div>
+                                </div>
+                                <div id="grading-rules-sum-warning" style="color:#f87171; font-size:11px; margin-top:8px; display:none;">⚠️ 비율의 총합이 100%여야 합니다. (현재: <span id="grading-rules-sum-current">100</span>%)</div>
+                            </div>
+
+                            <!-- 3. 동점자 처리 규칙 -->
+                            <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
+                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🏆 동점자 처리 우선순위 규칙</div>
+                                <div style="font-size:11px; color:var(--text-secondary); margin-bottom:8px;">동점자가 발생하여 비율 제한을 초과할 경우 이전 평가 항목을 아래 우선순위대로 반영합니다.</div>
+                                <div id="tie-breaker-order" style="display:flex; flex-direction:column; gap:8px;">
+                                    <!-- JS에서 평가항목 기반 우선순위 동적 렌더링 -->
+                                </div>
+                            </div>
+
+                            <!-- 4. F 학점 산출 규칙 -->
+                            <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
+                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🚫 F 학점 자동 부여 조건</div>
+                                <div style="display:flex; flex-direction:column; gap:8px; text-align:left;">
+                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
+                                        <input type="checkbox" id="f-rule-attendance" checked style="cursor:pointer;"> 결석시수초과 (전체 수업의 1/4 초과 결석자 - 출석미달은 점수 0점 처리 및 학점 비율 분배 모수에서 제외)
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
+                                        <input type="checkbox" id="f-rule-midterm" checked style="cursor:pointer;"> 중간고사 결시자
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
+                                        <input type="checkbox" id="f-rule-final" checked style="cursor:pointer;"> 기말고사 결시자
+                                    </label>
+                                    <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); margin-top:4px;">
+                                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+                                            <input type="checkbox" id="f-rule-minscore" style="cursor:pointer;"> 특정 총점 미만 F :
+                                        </label>
+                                        <input type="number" id="f-rule-minscore-val" value="60" disabled style="width:60px; padding:4px; border-radius:4px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;"> 점 미만
                                     </div>
                                 </div>
                             </div>
 
-                            <br>
-                            <button class="btn-home" id="btn-go-home">← 처음으로 돌아가기</button>
+                            <div class="wizard-nav" style="margin-top: 20px;">
+                                <button type="button" class="btn-back" id="btn-grading-b-back">← 이전 (성적 확인)</button>
+                                <button type="button" class="btn-next" id="btn-grading-b-run" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color:white;">⚙️ 학점 산출 실행</button>
+                            </div>
                         </div>
+
+                        <!-- Sub-panel 5-C: 학점 확인 및 수동 조정 -->
+                        <div id="grading-panel-c" class="grading-sub-panel" style="display:none;">
+                            <div style="font-weight: 600; font-size: 15px; color: #38bdf8; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                <span>📊 3. 학점 산출 결과 검증 및 수동 조정</span>
+                            </div>
+
+                            <!-- 의도 대비 실제 통계 대조 그리드 -->
+                            <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px;">
+                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px; text-align: left;">📊 의도한 비율/인원 vs 실제 산출 대조</div>
+                                <div class="preview-table-wrap" style="border: 1px solid var(--border-glass); border-radius: 6px; overflow: hidden;">
+                                    <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+                                        <thead>
+                                            <tr style="background:rgba(255,255,255,0.05); color:var(--text-main); font-weight:600;">
+                                                <th style="padding:8px; border-bottom:1px solid var(--border-glass); width: 15%;">등급</th>
+                                                <th style="padding:8px; border-bottom:1px solid var(--border-glass); width: 25%;">설정 기준 (의도)</th>
+                                                <th style="padding:8px; border-bottom:1px solid var(--border-glass); width: 20%;">실제 산출 인원</th>
+                                                <th style="padding:8px; border-bottom:1px solid var(--border-glass); width: 20%;">실제 비율</th>
+                                                <th style="padding:8px; border-bottom:1px solid var(--border-glass); width: 20%;">상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="grading-stats-table-body">
+                                            <!-- JS에서 동적으로 대조 데이터 주입 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 수동 조정 테이블 -->
+                            <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:8px; text-align:left;">✍️ 학생별 성적 및 학점 개별 조정</div>
+                            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:12px; text-align:left;">학점을 수동으로 직접 변경하거나 점수를 편집할 수 있습니다. 변경 시 위의 통계 대조가 실시간 반영됩니다.</div>
+
+                            <div class="preview-table-wrap" id="override-scores-table-wrap" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px; border: 1px solid var(--border-glass); border-radius: 8px;">
+                                <!-- 수동 조정용 학생 목록 테이블 동적 렌더링 -->
+                            </div>
+
+                            <div class="wizard-nav" style="margin-top: 20px;">
+                                <button type="button" class="btn-back" id="btn-grading-c-back">← 이전 (산출 설정 수정)</button>
+                                <button type="button" class="btn-next" id="btn-grading-c-confirm" style="background: linear-gradient(135deg, #10b981, #059669); color:white;">최종 데이터 확정 및 다음 단계 →</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ── Step 6: 성적 공시 및 완료 ── -->
+                <div class="wizard-panel" id="wizard-step-6" style="display:none;">
+                    <div class="wizard-card">
+                        <div class="complete-section">
+                            <div class="complete-icon">📢</div>
+                            <div class="complete-title">성적 공시 설정</div>
+                            <div class="complete-subtitle">학생들에게 성적을 공시할 기간을 설정합니다.</div>
+
+                            <!-- 수강생 열람율 통계 위젯 -->
+                            <div id="course-view-stats-widget" class="stats-widget-card" style="display:none; margin: 16px 0; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-md); text-align: left;">
+                                <div class="stats-widget-header">
+                                    <span style="font-weight: 600; font-size: 13px; color: #38bdf8; display: flex; align-items: center; gap: 8px;">📊 수강생 성적 열람 현황</span>
+                                    <button type="button" id="btn-view-stats-detail" class="stats-detail-link-btn">
+                                        🔍 자세히 보기
+                                    </button>
+                                </div>
+                                <div id="course-view-stats-text" style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+                                    불러오는 중...
+                                </div>
+                                <div class="progress-bar" style="margin-top: 8px; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                    <div id="course-view-stats-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); transition: width 0.5s ease-out;"></div>
+                                </div>
+                            </div>
+
+                            <!-- 공시 설정 -->
+                            <div id="publish-area" style="display:block; margin-top:20px;">
+                                <div class="publish-card" style="padding:0; border:none; background:transparent;">
+                                    <div class="publish-status" id="publish-status"></div>
+                                    <div class="publish-form">
+                                        <div class="publish-fields-row">
+                                            <div class="publish-field">
+                                                <label for="publish-start-datetime">공시 시작 일시</label>
+                                                <input type="datetime-local" id="publish-start-datetime" class="publish-input">
+                                            </div>
+                                            <div class="publish-field">
+                                                <label for="publish-end-datetime">공시 종료 일시</label>
+                                                <input type="datetime-local" id="publish-end-datetime" class="publish-input">
+                                            </div>
+                                        </div>
+
+                                        <div id="publish-access-code-display-row" class="publish-fields-row" style="margin-top: 15px; display: none; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); align-items: center; justify-content: space-between; flex-direction: row;">
+                                            <div style="font-size: 13px; color: var(--text-secondary);">
+                                                🔑 설정된 접속 비밀번호: <span id="publish-access-code-masked" style="font-weight: 700; color: #f59e0b; font-size: 15px; margin-left: 8px; letter-spacing: 2px;">* * * * * *</span>
+                                            </div>
+                                            <button type="button" id="btn-view-access-code" class="btn-reset-pw" style="padding: 6px 12px; font-size: 12px; margin: 0;">보기 👁</button>
+                                        </div>
+                                        <div class="publish-actions" style="margin-top: 20px;">
+                                            <button class="pipe-btn active" id="btn-publish" style="padding:10px 24px;">📢 공시하기</button>
+                                            <button class="pipe-btn" id="btn-unpublish" style="padding:10px 24px;opacity:0.6;cursor:pointer;">🚫 공시 취소</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="wizard-nav" style="margin-top: 30px;">
+                                <button type="button" class="btn-back" id="btn-publish-back">← 이전 (학점 산출 및 조정)</button>
+                                <button type="button" class="btn-home" id="btn-go-home">처음으로 돌아가기</button>
+                            </div>
+                        </div>
+                    </div>
                     </div>
                 </div>
 
