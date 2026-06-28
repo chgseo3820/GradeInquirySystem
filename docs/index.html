@@ -1004,8 +1004,8 @@
                             <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
                                 <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🚫 F 학점 자동 부여 조건</div>
                                 <div style="display:flex; flex-direction:column; gap:8px; text-align:left;">
-                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
-                                        <input type="checkbox" id="f-rule-attendance" checked style="cursor:pointer;"> 결석시수초과 (전체 수업의 1/4 초과 결석자 - 출석미달은 점수 0점 처리 및 학점 비율 분배 모수에서 제외)
+                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:default; margin: 0;">
+                                        <input type="checkbox" id="f-rule-attendance" checked disabled style="cursor:not-allowed; opacity:0.7;"> <strong>[필수]</strong> 결석시수초과 (전체 수업의 1/4 초과 결석자 - 0점 처리 및 학점 비율 분배 모수 자동 제외)
                                     </label>
                                     <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
                                         <input type="checkbox" id="f-rule-midterm" checked style="cursor:pointer;"> 중간고사 결시자

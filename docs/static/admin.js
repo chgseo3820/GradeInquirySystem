@@ -2262,29 +2262,39 @@
             st.f_reason = null;
             st.is_f = false;
             
-            if (fAttendance && st.absences >= 4) {
+            // 결석시수초과 (전체 수업의 1/4 초과 결석자)는 항상 F이며 0점 처리 (필수)
+            if (st.absences >= 4) {
                 st.is_f = true;
                 st.f_reason = '출석미달';
+                st.total_score = 0;
+                st.grade = 'F';
             }
-            const midtermCol = activeEvalItems.find(e => e.id === 'midterm');
-            if (midtermCol && fMidterm) {
-                const scoreVal = st[`${midtermCol.id}_score`];
-                if (scoreVal === null || scoreVal === undefined || scoreVal === '') {
-                    st.is_f = true;
-                    st.f_reason = '중간결시';
+            
+            if (!st.is_f) {
+                const midtermCol = activeEvalItems.find(e => e.id === 'midterm');
+                if (midtermCol && fMidterm) {
+                    const scoreVal = st[`${midtermCol.id}_score`];
+                    if (scoreVal === null || scoreVal === undefined || scoreVal === '') {
+                        st.is_f = true;
+                        st.f_reason = '중간결시';
+                    }
                 }
             }
-            const finalCol = activeEvalItems.find(e => e.id === 'final');
-            if (finalCol && fFinal) {
-                const scoreVal = st[`${finalCol.id}_score`];
-                if (scoreVal === null || scoreVal === undefined || scoreVal === '') {
-                    st.is_f = true;
-                    st.f_reason = '기말결시';
+            if (!st.is_f) {
+                const finalCol = activeEvalItems.find(e => e.id === 'final');
+                if (finalCol && fFinal) {
+                    const scoreVal = st[`${finalCol.id}_score`];
+                    if (scoreVal === null || scoreVal === undefined || scoreVal === '') {
+                        st.is_f = true;
+                        st.f_reason = '기말결시';
+                    }
                 }
             }
-            if (fMinscore && st.total_score < fMinscoreVal) {
-                st.is_f = true;
-                st.f_reason = '성적미달';
+            if (!st.is_f) {
+                if (fMinscore && st.total_score < fMinscoreVal) {
+                    st.is_f = true;
+                    st.f_reason = '성적미달';
+                }
             }
         });
 
@@ -2466,16 +2476,21 @@
 
         let trs = '';
         studentList.forEach(st => {
+            const isAttendanceF = st.absences >= 4;
             const grades = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F'];
             let gradeOptions = '';
             grades.forEach(g => {
-                const selected = st.grade === g ? 'selected' : '';
-                gradeOptions += `<option value="${g}">${g}</option>`;
+                const targetGrade = isAttendanceF ? 'F' : st.grade;
+                const selected = targetGrade === g ? 'selected' : '';
+                gradeOptions += `<option value="${g}" ${selected}>${g}</option>`;
             });
 
             const checkedExclude = st.is_relative_excluded ? 'checked' : '';
             const checkedF = st.is_f ? ' (자동 F)' : '';
             const remarkText = st.f_reason ? `🚫 ${st.f_reason}` : (st.remark || '-');
+
+            const disabledAttr = isAttendanceF ? 'disabled' : '';
+            const cursorStyle = isAttendanceF ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;';
 
             trs += `
                 <tr style="border-bottom:1px solid var(--border-glass);" data-student-id="${st.student_id_masked}" data-name="${st.name_masked}">
@@ -2483,15 +2498,15 @@
                     <td style="padding:10px; text-align:center;">${st.name_masked}</td>
                     <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     <td style="padding:10px; text-align:center;">
-                        <input type="number" class="override-score-input" value="${st.total_score}" step="0.1" style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                        <input type="number" class="override-score-input" value="${st.total_score}" step="0.1" ${disabledAttr} style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; ${isAttendanceF ? 'opacity:0.6;' : ''}">
                     </td>
                     <td style="padding:10px; text-align:center;">
-                        <select class="override-grade-select" style="padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); outline:none; font-weight:700;">
+                        <select class="override-grade-select" ${disabledAttr} style="padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); outline:none; font-weight:700; ${isAttendanceF ? 'opacity:0.6;' : ''}">
                             ${gradeOptions}
                         </select>
                     </td>
                     <td style="padding:10px; text-align:center;">
-                        <input type="checkbox" class="override-exclude-checkbox" ${checkedExclude} style="cursor:pointer; width:16px; height:16px;">
+                        <input type="checkbox" class="override-exclude-checkbox" ${checkedExclude} ${disabledAttr} style="${cursorStyle} width:16px; height:16px;">
                     </td>
                     <td style="padding:10px; text-align:left; font-size:11px; color:var(--text-secondary);">${remarkText}${checkedF}</td>
                 </tr>
@@ -3480,10 +3495,21 @@
 
             // 엑셀 총점 우선 사용
             const excelTotal = (mapping.total && row[mapping.total] !== undefined && row[mapping.total] !== '') ? parseFloat(row[mapping.total]) : null;
-            const finalTotal = (excelTotal !== null && !isNaN(excelTotal)) ? parseFloat(excelTotal.toFixed(2)) : finalCalculatedTotal;
+            let finalTotal = (excelTotal !== null && !isNaN(excelTotal)) ? parseFloat(excelTotal.toFixed(2)) : finalCalculatedTotal;
+
+            let finalGrade = grade || '-';
+            let finalIsF = false;
+            let finalFReason = null;
+
+            if (absences >= 4) {
+                finalTotal = 0;
+                finalGrade = 'F';
+                finalIsF = true;
+                finalFReason = '출석미달';
+            }
 
             // 총점 불일치 검증
-            if (mapping.total && totalScore !== 0) {
+            if (mapping.total && totalScore !== 0 && absences < 4) {
                 if (Math.abs(finalCalculatedTotal - totalScore) > 0.5) {
                     totalMismatches++;
                     mismatchDetails.push({
@@ -3507,7 +3533,7 @@
                         cRowRef[headerName] = sVal !== null ? sVal : '';
                     });
                     if ('합계' in cRowRef) cRowRef['합계'] = finalTotal;
-                    if ('석차' in cRowRef) cRowRef['석차'] = rank;
+                    if ('석차' in cRowRef) cRowRef['석차'] = absences >= 4 ? '-' : rank;
                 }
             }
             rowIndex++;
@@ -3523,10 +3549,12 @@
                 special_score: specialScore || null,
                 special_memo: specialMemo,
                 total_score: finalTotal,
-                rank: rank || `-`,
-                grade: grade || '-',
+                rank: absences >= 4 ? '-' : (rank || `-`),
+                grade: finalGrade,
                 absences: absences,
                 remark: remark,
+                is_f: finalIsF,
+                f_reason: finalFReason,
                 _cRow: cRowRef // 임시 참조 저장
             };
 
