@@ -551,7 +551,6 @@
         // (wide-layout is now global for admin mode)
         if (step >= 4) {
             if (step === 4) {
-                renderCompleteSummary();
                 renderViewStats();
                 checkExistingDataForStep4();
             } else if (step === 5) {
@@ -1387,7 +1386,7 @@
         if (!c) return;
         adminConfig.course = withCourseId({ year: c.year, semester: c.semester, name: c.name, id: c.id });
         adminConfig.evaluation = c.evaluation ? [...c.evaluation] : [];
-        renderCompleteSummary();
+
         renderViewStats();
         checkExistingDataForStep4();
     }
