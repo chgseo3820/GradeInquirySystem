@@ -2729,9 +2729,8 @@
             item.id !== 'final'
         );
 
-        // Virtual Total Score item + eligible evaluation items
+        // Virtual Total Score item is removed
         const allItems = [
-            { id: 'total_score', label: '총점', defaultVal: 60 },
             ...eligibleItems.map(item => ({ id: item.id, label: item.label, defaultVal: 0 }))
         ];
 
@@ -2740,7 +2739,7 @@
             html += `
                 <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); margin-bottom: 4px;">
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
-                        <input type="checkbox" class="f-rule-custom-checkbox" data-item-id="${item.id}" style="cursor:pointer;"> 특정 ${item.label} 미만 F :
+                        <input type="checkbox" class="f-rule-custom-checkbox" data-item-id="${item.id}" style="cursor:pointer;"> ${item.label} 미만 F :
                     </label>
                     <input type="number" class="f-rule-custom-val-input" data-item-id="${item.id}" value="${item.defaultVal}" disabled style="width:60px; padding:4px; border-radius:4px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; font-size: 12px;"> 점 미만
                 </div>
