@@ -2868,7 +2868,9 @@
             `;
         });
 
+        const filterHTML = classFilterDropdownHTML('step5a', allStudents);
         wrap.innerHTML = `
+            ${filterHTML ? `<div style="display:flex; justify-content:flex-end; margin-bottom:8px;">${filterHTML}</div>` : ''}
             <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
                 <thead>
                     <tr style="background:rgba(255,255,255,0.05); color:var(--text-main); font-weight:600;">
@@ -3454,7 +3456,9 @@
             `;
         });
 
+        const filterHTML = classFilterDropdownHTML('step5c', allStudents);
         wrap.innerHTML = `
+            ${filterHTML ? `<div style="display:flex; justify-content:flex-end; margin-bottom:8px;">${filterHTML}</div>` : ''}
             <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
                 <thead>
                     <tr style="background:rgba(255,255,255,0.05); color:var(--text-main); font-weight:600;">
