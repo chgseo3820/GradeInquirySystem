@@ -1799,6 +1799,12 @@ select.form-input option {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
+.course-selector select option,
+.course-selector .wizard-select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
 /* ── Publish Card ── */
 .publish-card {
     margin-top: var(--space-md);
