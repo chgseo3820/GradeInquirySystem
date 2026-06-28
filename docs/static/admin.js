@@ -3315,21 +3315,15 @@
 
         // Set grade for F and Excluded globally
         studentList.forEach(st => {
-            if (st.is_f) {
-                st.grade = 'F';
-                if (st.f_reason === '출석미달') {
-                    st.total_score = 0;
-                } else {
-                    st.total_score = Math.min(59, st.total_score);
+                if (st.is_f) {
+                    st.grade = 'F';
+                    if (st.f_reason === '출석미달') {
+                        st.total_score = 0;
+                    } else {
+                        st.total_score = Math.min(59, st.total_score);
+                    }
                 }
-            } else if (st.is_relative_excluded) {
-                if (st.total_score >= 90) st.grade = 'A0';
-                else if (st.total_score >= 80) st.grade = 'B0';
-                else if (st.total_score >= 70) st.grade = 'C0';
-                else if (st.total_score >= 60) st.grade = 'D0';
-                else st.grade = 'F';
-            }
-        });
+            });
 
         pendingUploadData.classTargetStats = classTargetStats;
         pendingUploadData.distType = distType;
@@ -3454,8 +3448,14 @@
             const isAttendanceF = st.absences >= 4;
             const grades = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F'];
             let gradeOptions = '';
+            
+            const targetGrade = isAttendanceF ? 'F' : st.grade;
+            
+            if (!targetGrade || !grades.includes(targetGrade)) {
+                gradeOptions += `<option value="${targetGrade || ''}" selected>${targetGrade || '-'}</option>`;
+            }
+            
             grades.forEach(g => {
-                const targetGrade = isAttendanceF ? 'F' : st.grade;
                 const selected = targetGrade === g ? 'selected' : '';
                 gradeOptions += `<option value="${g}" ${selected}>${g}</option>`;
             });
