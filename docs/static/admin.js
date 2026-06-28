@@ -2844,9 +2844,22 @@
                 if (parsed && parsed.students) {
                     const studentsArray = Object.values(parsed.students);
                     if (studentsArray.length > 0) {
-                        const headers = Object.keys(studentsArray[0]);
+                        // 원본 포맷에 맞게 헤더와 데이터 재구성
+                        const customHeaders = ['학번', '이름', '분반', '학과', '합계점수', '최종학점'];
+                        const customRows = studentsArray.map(s => {
+                            let row = {
+                                '학번': s.st_id,
+                                '이름': s.name,
+                                '분반': s.class_num ? String(s.class_num) : '',
+                                '학과': s.department || '',
+                                '합계점수': typeof s.total_score === 'number' ? s.total_score.toFixed(2) : (s.total_score || ''),
+                                '최종학점': s.grade || ''
+                            };
+                            return row;
+                        });
+                        
                         if (typeof renderPreviewTable === 'function') {
-                            renderPreviewTable(studentsArray, headers);
+                            renderPreviewTable(customRows, customHeaders);
                         }
                         const pipelineArea = document.getElementById('pipeline-area');
                         const previewToolbar = document.getElementById('preview-toolbar');
