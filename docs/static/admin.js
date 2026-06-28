@@ -1558,10 +1558,9 @@
         // 헤더 행
         const baseHeaders = ['분반', '소속', '학년', '학번', '성명', '전화번호'];
         const evalHeaders = evaluation.map(e => `${e.label}(${e.ratio}%)`);
-        const headers = [...baseHeaders, ...evalHeaders, '가산점', '가산메모', '특별점수', '특별점수메모', '합계', '석차'];
+        const headers = [...baseHeaders, ...evalHeaders, '가산점', '가산메모', '특별점수', '특별점수메모'];
 
         // 샘플 데이터 행 (3개 예시)
-        // 100점 초과 케이스 포함 (예: 홍길동은 가산점/특별점수 포함 100점 초과)
         const sampleRowsRaw = [
             { classNum: 1, dept: '경영학과', year: 3, studentId: '20240001', name: '홍길동', phone: '010-1234-5678', scoreFactor: 0.95, extra: 5, extraMemo: '경진대회 수상', special: 3, specialMemo: '우수 참여자' },
             { classNum: 1, dept: '경영학과', year: 2, studentId: '20240002', name: '김영희', phone: '010-2345-6789', scoreFactor: 0.8, extra: 0, extraMemo: '', special: 0, specialMemo: '' },
@@ -1575,23 +1574,8 @@
             });
         });
 
-        const sums = sampleRowsRaw.map((row, idx) => {
-            const evalSum = evalScoresList[idx].reduce((a, b) => a + b, 0);
-            return parseFloat((evalSum + row.extra + row.special).toFixed(2));
-        });
-
-        const ranks = sampleRowsRaw.map((row, idx) => {
-            const cn = row.classNum;
-            const mySum = sums[idx];
-            const sameClassSums = sums.filter((_, i) => sampleRowsRaw[i].classNum === cn);
-            const rank = sameClassSums.filter(s => s > mySum).length + 1;
-            return rank;
-        });
-
         const sampleRows = sampleRowsRaw.map((row, idx) => {
             const scores = evalScoresList[idx];
-            const sum = sums[idx];
-            const rank = ranks[idx];
             return [
                 row.classNum,
                 row.dept,
@@ -1603,9 +1587,7 @@
                 row.extra || '',
                 row.extraMemo,
                 row.special || '',
-                row.specialMemo,
-                sum,
-                rank
+                row.specialMemo
             ];
         });
 
@@ -2790,10 +2772,7 @@
             return !!found;
         });
 
-        // 뒷부분 헤더도 확인 (합계 추가)
-        const hasTail = ['합계', '총점', '성적', '석차', '학점', '평점'].some(t => headers.some(h => h.includes(t)));
-
-        return allEvalMatch && hasTail;
+        return allEvalMatch;
     }
 
     // ── 파이프라인 렌더링 ──
