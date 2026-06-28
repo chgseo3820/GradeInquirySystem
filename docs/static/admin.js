@@ -2966,6 +2966,19 @@
         function updateLabels() {
             const distType = distTypeSelect.value;
             const valLabels = document.querySelectorAll('.grading-val-label');
+            const plusLabels = [
+                document.getElementById('grading-plus-a-label'),
+                document.getElementById('grading-plus-b-label'),
+                document.getElementById('grading-plus-c-label'),
+                document.getElementById('grading-plus-d-label')
+            ];
+            const plusInputs = [
+                document.getElementById('grading-plus-a'),
+                document.getElementById('grading-plus-b'),
+                document.getElementById('grading-plus-c'),
+                document.getElementById('grading-plus-d')
+            ];
+            const grades = ['A', 'B', 'C', 'D'];
 
             if (distType === 'ratio') {
                 rulesTitle.textContent = '구간별 비율 설정 (총합 100%)';
@@ -2976,6 +2989,17 @@
                     }
                 });
                 valLabels.forEach(lbl => lbl.textContent = '비율');
+                
+                plusLabels.forEach((lbl, idx) => {
+                    if (lbl) lbl.textContent = `${grades[idx]}등급내 ${grades[idx]}+비율(%)`;
+                });
+                plusInputs.forEach(input => {
+                    if (input) {
+                        input.max = 100;
+                        input.placeholder = '%';
+                    }
+                });
+                
                 checkRatioSum();
             } else {
                 const totalStudents = getPendingStudentList().length;
@@ -2987,25 +3011,50 @@
                     }
                 });
                 valLabels.forEach(lbl => lbl.textContent = '인원');
-                if (rulesWarning) rulesWarning.style.display = 'none';
-                const btnRun = document.getElementById('btn-grading-b-run');
-                if (btnRun) btnRun.removeAttribute('disabled');
+                
+                plusLabels.forEach((lbl, idx) => {
+                    if (lbl) lbl.textContent = `${grades[idx]}등급내 ${grades[idx]}+인원(명)`;
+                });
+                plusInputs.forEach(input => {
+                    if (input) {
+                        input.removeAttribute('max');
+                        input.placeholder = '명';
+                    }
+                });
+                
+                checkRatioSum();
             }
         }
 
         function checkRatioSum() {
-            if (distTypeSelect.value !== 'ratio') return;
+            const distType = distTypeSelect.value;
             const sum = inputs.reduce((acc, input) => acc + (parseFloat(input.value) || 0), 0);
             const sumSpan = document.getElementById('grading-rules-sum-current');
             if (sumSpan) sumSpan.textContent = sum;
 
             const btnRun = document.getElementById('btn-grading-b-run');
-            if (Math.abs(sum - 100) > 0.01) {
-                if (rulesWarning) rulesWarning.style.display = 'block';
-                if (btnRun) btnRun.setAttribute('disabled', 'true');
+            
+            if (distType === 'ratio') {
+                if (Math.abs(sum - 100) > 0.01) {
+                    if (rulesWarning) rulesWarning.style.display = 'block';
+                    if (btnRun) btnRun.setAttribute('disabled', 'true');
+                } else {
+                    if (rulesWarning) rulesWarning.style.display = 'none';
+                    if (btnRun) btnRun.removeAttribute('disabled');
+                }
             } else {
-                if (rulesWarning) rulesWarning.style.display = 'none';
-                if (btnRun) btnRun.removeAttribute('disabled');
+                // 인원일 경우 총합이 학생수와 같은지 체크
+                const totalStudents = getPendingStudentList().length;
+                if (sum !== totalStudents) {
+                    if (rulesWarning) {
+                        rulesWarning.innerHTML = `⚠️ 인원의 총합이 전체 학생 수(${totalStudents}명)와 같아야 합니다. (현재: <span id="grading-rules-sum-current">${sum}</span>명)`;
+                        rulesWarning.style.display = 'block';
+                    }
+                    if (btnRun) btnRun.setAttribute('disabled', 'true');
+                } else {
+                    if (rulesWarning) rulesWarning.style.display = 'none';
+                    if (btnRun) btnRun.removeAttribute('disabled');
+                }
             }
             
             // Visual bar update
@@ -3019,15 +3068,18 @@
                 const valC = parseFloat(inputs[2].value) || 0;
                 const valD = parseFloat(inputs[3].value) || 0;
                 const total = valA + valB + valC + valD;
-                const divTotal = total > 0 ? total : 100;
-                barA.style.width = `%`;
-                barA.textContent = `A (%)`;
-                barB.style.width = `%`;
-                barB.textContent = `B (%)`;
-                barC.style.width = `%`;
-                barC.textContent = `C (%)`;
-                barD.style.width = `%`;
-                barD.textContent = `D (%)`;
+                const divTotal = total > 0 ? total : (distType === 'ratio' ? 100 : Math.max(1, getPendingStudentList().length));
+                
+                const unit = distType === 'ratio' ? '%' : '명';
+                
+                barA.style.width = `${(valA / divTotal) * 100}%`;
+                barA.textContent = `A (${valA}${unit})`;
+                barB.style.width = `${(valB / divTotal) * 100}%`;
+                barB.textContent = `B (${valB}${unit})`;
+                barC.style.width = `${(valC / divTotal) * 100}%`;
+                barC.textContent = `C (${valC}${unit})`;
+                barD.style.width = `${(valD / divTotal) * 100}%`;
+                barD.textContent = `D (${valD}${unit})`;
             }
         }
 
@@ -3080,15 +3132,21 @@
         const valC = parseFloat(document.getElementById('grading-val-c').value) || 0;
         const valD = parseFloat(document.getElementById('grading-val-d').value) || 0;
 
-        const plusRatioA = parseFloat(document.getElementById('grading-plus-a').value) ?? 60;
-        const plusRatioB = parseFloat(document.getElementById('grading-plus-b').value) ?? 60;
-        const plusRatioC = parseFloat(document.getElementById('grading-plus-c').value) ?? 60;
-        const plusRatioD = parseFloat(document.getElementById('grading-plus-d').value) ?? 60;
+        const plusValA = parseFloat(document.getElementById('grading-plus-a').value) || 0;
+        const plusValB = parseFloat(document.getElementById('grading-plus-b').value) || 0;
+        const plusValC = parseFloat(document.getElementById('grading-plus-c').value) || 0;
+        const plusValD = parseFloat(document.getElementById('grading-plus-d').value) || 0;
 
+        const sum = valA + valB + valC + valD;
         if (distType === 'ratio') {
-            const sum = valA + valB + valC + valD;
             if (Math.abs(sum - 100) > 0.01) {
                 alert(`⚠️ 비율의 총합이 100%여야 합니다.\n현재 입력값 합계: ${sum}%`);
+                return;
+            }
+        } else {
+            const totalStudents = getPendingStudentList().length;
+            if (sum !== totalStudents) {
+                alert(`⚠️ 인원의 총합이 전체 학생 수(${totalStudents}명)와 같아야 합니다.\n현재 입력값 합계: ${sum}명`);
                 return;
             }
         }
@@ -3236,10 +3294,10 @@
             const cStudents = normalStudents.slice(countA + countB, countA + countB + countC);
             const dStudents = normalStudents.slice(countA + countB + countC);
 
-            const countPlusA = Math.round(aStudents.length * (plusRatioA / 100));
-            const countPlusB = Math.round(bStudents.length * (plusRatioB / 100));
-            const countPlusC = Math.round(cStudents.length * (plusRatioC / 100));
-            const countPlusD = Math.round(dStudents.length * (plusRatioD / 100));
+            const countPlusA = distType === 'ratio' ? Math.round(aStudents.length * (plusValA / 100)) : plusValA;
+            const countPlusB = distType === 'ratio' ? Math.round(bStudents.length * (plusValB / 100)) : plusValB;
+            const countPlusC = distType === 'ratio' ? Math.round(cStudents.length * (plusValC / 100)) : plusValC;
+            const countPlusD = distType === 'ratio' ? Math.round(dStudents.length * (plusValD / 100)) : plusValD;
 
             aStudents.forEach((st, idx) => st.grade = idx < countPlusA ? 'A+' : 'A0');
             bStudents.forEach((st, idx) => st.grade = idx < countPlusB ? 'B+' : 'B0');
