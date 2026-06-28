@@ -497,16 +497,46 @@
     // ──────────────────────────────────────────────
     // Wizard Navigation
     // ──────────────────────────────────────────────
+    window.attemptGoToStep = function(targetStep) {
+        if (targetStep === currentStep) return;
+
+        // If moving backwards, simply allow it.
+        if (targetStep < currentStep) {
+            goToStep(targetStep);
+            return;
+        }
+
+        // If moving forwards, validate intermediate steps sequentially
+        for (let s = currentStep; s < targetStep; s++) {
+            if (s === 1 && typeof validateStep1 === 'function' && !validateStep1()) return;
+            if (s === 2 && typeof validateStep2 === 'function' && !validateStep2()) return;
+            if (s === 3 && typeof validateStep3 === 'function' && !validateStep3()) return;
+        }
+
+        goToStep(targetStep);
+    };
+
     function goToStep(step) {
+        const isForward = step > currentStep;
         currentStep = step;
 
-        // Hide all panels
-        document.querySelectorAll('.wizard-panel').forEach(p => p.style.display = 'none');
+        const directionClass = isForward ? 'slide-in-right' : 'slide-in-left';
 
-        // Show target panel
+        // Hide all panels and remove animation classes
+        document.querySelectorAll('.wizard-panel').forEach(p => {
+            p.style.display = 'none';
+            p.classList.remove('slide-in-right', 'slide-in-left');
+        });
+
+        // Show target panel with animation
         const panelId = `wizard-step-${step}`;
         const targetPanel = document.getElementById(panelId);
-        if (targetPanel) targetPanel.style.display = '';
+        if (targetPanel) {
+            targetPanel.style.display = '';
+            // Force reflow to restart animation
+            void targetPanel.offsetWidth;
+            targetPanel.classList.add(directionClass);
+        }
 
         // Update step indicators
         document.querySelectorAll('.wizard-step').forEach(el => {
@@ -3643,7 +3673,7 @@
             `학생 ${studentCount}명 · ${classCount}개 분반\n` +
             `다음 단계에서 공시 기간을 설정하세요.`);
 
-        goToStep(6);
+        window.attemptGoToStep(6);
     }
 
     // ──────────────────────────────────────────────
@@ -3894,7 +3924,7 @@
                     nextBtn.style.display = '';
                     nextBtn.removeAttribute('disabled');
                 }
-                goToStep(5);
+                window.attemptGoToStep(5);
             });
         } else {
             // 비표준: [표준포맷 변환] → [미리보기] → [변환파일 다운로드] → [성적데이터 확정]
@@ -3964,7 +3994,7 @@
                     nextBtn.style.display = '';
                     nextBtn.removeAttribute('disabled');
                 }
-                goToStep(5);
+                window.attemptGoToStep(5);
             });
         }
 
@@ -4774,18 +4804,18 @@
         document.getElementById('wizard-back-home').addEventListener('click', showModeSelection);
 
         document.getElementById('wizard-next-1').addEventListener('click', () => {
-            if (validateStep1()) goToStep(2);
+            window.attemptGoToStep(2);
         });
 
-        document.getElementById('wizard-back-2').addEventListener('click', () => goToStep(1));
+        document.getElementById('wizard-back-2').addEventListener('click', () => window.attemptGoToStep(1));
         document.getElementById('wizard-save-2').addEventListener('click', saveEarlyConfig);
         document.getElementById('wizard-next-2').addEventListener('click', () => {
-            if (validateStep2()) goToStep(3);
+            window.attemptGoToStep(3);
         });
 
-        document.getElementById('wizard-back-3').addEventListener('click', () => goToStep(2));
+        document.getElementById('wizard-back-3').addEventListener('click', () => window.attemptGoToStep(2));
         document.getElementById('wizard-next-3').addEventListener('click', () => {
-            if (validateStep3()) goToStep(4);
+            window.attemptGoToStep(4);
         });
         document.getElementById('wizard-add-course').addEventListener('click', () => {
             // 현재 평가 저장 (이미 등록된 과목이므로 중복확인 불필요)
@@ -4869,17 +4899,17 @@
         // Step 4 navigation buttons
         const btnUploadBack = document.getElementById('btn-upload-back');
         if (btnUploadBack) {
-            btnUploadBack.addEventListener('click', () => goToStep(3));
+            btnUploadBack.addEventListener('click', () => window.attemptGoToStep(3));
         }
         const btnUploadNext = document.getElementById('btn-upload-next');
         if (btnUploadNext) {
-            btnUploadNext.addEventListener('click', () => goToStep(5));
+            btnUploadNext.addEventListener('click', () => window.attemptGoToStep(5));
         }
 
         // Step 5 navigation buttons
         const btnGradingABack = document.getElementById('btn-grading-a-back');
         if (btnGradingABack) {
-            btnGradingABack.addEventListener('click', () => goToStep(4));
+            btnGradingABack.addEventListener('click', () => window.attemptGoToStep(4));
         }
         const btnGradingANext = document.getElementById('btn-grading-a-next');
         if (btnGradingANext) {
@@ -5182,7 +5212,7 @@
                     alert('먼저 과목을 선택해주세요.');
                     return;
                 }
-                goToStep(stepNum);
+                window.attemptGoToStep(stepNum);
             });
         });
 
