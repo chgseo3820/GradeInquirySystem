@@ -581,45 +581,45 @@
             </div>
 
             <!-- ── 교수 마법사 컨테이너 (인증 통과 시 노출) ── -->
-            <div class="wizard-container" id="admin-wizard-container" style="display:none; width:100%;">
+            <div class="wizard-container admin-layout-flex" id="admin-wizard-container" style="display:none; width:100%;">
                 
-                <div class="wizard-logout-row" style="display:flex; justify-content:flex-end; gap:8px; width:100%; margin-bottom:12px;">
-                    <button class="btn-reset-pw" id="admin-info-mgmt-btn" style="padding:6px 12px; font-size:12px;">👤 개인정보 수정</button>
-                    <button class="btn-logout" id="admin-logout-btn" style="padding:6px 12px; font-size:12px; opacity:0.8;">로그 아웃</button>
+                <!-- 왼쪽 사이드바 메뉴 -->
+                <div class="admin-sidebar">
+                    <div class="admin-sidebar-menu" id="wizard-steps">
+                        <div class="wizard-step active" data-step="1">
+                            <span class="step-label">1. 과목선택</span>
+                            <span class="step-status"></span>
+                        </div>
+                        <div class="wizard-step" data-step="2">
+                            <span class="step-label">2. 과목정보</span>
+                            <span class="step-status"></span>
+                        </div>
+                        <div class="wizard-step" data-step="3">
+                            <span class="step-label">3. 평가기준</span>
+                            <span class="step-status"></span>
+                        </div>
+                        <div class="wizard-step" data-step="4">
+                            <span class="step-label">4. 성적업로드</span>
+                            <span class="step-status"></span>
+                        </div>
+                        <div class="wizard-step" data-step="5">
+                            <span class="step-label">5. 학점산출</span>
+                            <span class="step-status"></span>
+                        </div>
+                        <div class="wizard-step" data-step="6">
+                            <span class="step-label">6. 성적공시</span>
+                            <span class="step-status"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="wizard-logout-row" style="display:flex; flex-direction:column; gap:8px; width:100%; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-glass);">
+                        <button class="btn-reset-pw" id="admin-info-mgmt-btn" style="padding:8px 12px; font-size:13px; width:100%;">👤 개인정보 수정</button>
+                        <button class="btn-logout" id="admin-logout-btn" style="padding:8px 12px; font-size:13px; opacity:0.8; width:100%;">로그 아웃</button>
+                    </div>
                 </div>
 
-                <!-- Step Indicator -->
-                <div class="wizard-steps" id="wizard-steps">
-                    <div class="wizard-step active" data-step="1">
-                        <div class="step-circle">1</div>
-                        <span class="step-label">과목선택</span>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="wizard-step" data-step="2">
-                        <div class="step-circle">2</div>
-                        <span class="step-label">과목정보</span>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="wizard-step" data-step="3">
-                        <div class="step-circle">3</div>
-                        <span class="step-label">평가기준</span>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="wizard-step" data-step="4">
-                        <div class="step-circle">4</div>
-                        <span class="step-label">성적업로드</span>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="wizard-step" data-step="5">
-                        <div class="step-circle">5</div>
-                        <span class="step-label">학점산출</span>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="wizard-step" data-step="6">
-                        <div class="step-circle">6</div>
-                        <span class="step-label">성적공시</span>
-                    </div>
-                </div>
+                <!-- 우측 콘텐츠 영역 -->
+                <div class="admin-content">
 
                 <!-- ── Step 1: 교수 인적사항 ── -->
                 <div class="wizard-panel" id="wizard-step-1">

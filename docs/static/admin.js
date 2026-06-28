@@ -511,14 +511,12 @@
         // Update step indicators
         document.querySelectorAll('.wizard-step').forEach(el => {
             const s = parseInt(el.dataset.step);
-            el.classList.remove('active', 'completed');
+            el.classList.remove('active');
             if (s === step) el.classList.add('active');
-            else if (s < step) el.classList.add('completed');
         });
 
-        document.querySelectorAll('.step-connector').forEach((c, i) => {
-            c.classList.toggle('completed', i + 1 < step);
-        });
+        // 완료 상태 업데이트
+        updateStepCompletionStatus();
 
         // Step >= 4 = 레이아웃 확장 추가
         if (step >= 4) {
@@ -560,6 +558,44 @@
         }
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ──────────────────────────────────────────────
+    // Step Completion Status
+    // ──────────────────────────────────────────────
+    function updateStepCompletionStatus() {
+        document.querySelectorAll('.wizard-step').forEach(el => {
+            const s = parseInt(el.dataset.step);
+            const statusSpan = el.querySelector('.step-status');
+            if (!statusSpan) return;
+
+            let isCompleted = false;
+            if (s === 1) {
+                isCompleted = !!selectedCourseId;
+            } else if (s === 2) {
+                isCompleted = !!(selectedCourseId && adminCourses[selectedCourseId]);
+            } else if (s === 3) {
+                const c = adminCourses[selectedCourseId];
+                isCompleted = !!(c && c.evaluation && c.evaluation.length > 0);
+            } else if (s === 4) {
+                const c = adminCourses[selectedCourseId];
+                isCompleted = !!(c && c.students && c.students.length > 0);
+            } else if (s === 5) {
+                const c = adminCourses[selectedCourseId];
+                isCompleted = !!(c && c.gradeDist && c.students && c.students.some(st => st.total_score !== undefined));
+            } else if (s === 6) {
+                const c = adminCourses[selectedCourseId];
+                isCompleted = !!(c && c.is_published);
+            }
+
+            if (isCompleted) {
+                statusSpan.textContent = '✅';
+                el.classList.add('completed');
+            } else {
+                statusSpan.textContent = '';
+                el.classList.remove('completed');
+            }
+        });
     }
 
     function populateCourseNameList() {
@@ -5155,6 +5191,18 @@
 
         const infoMgmtBtn = document.getElementById('admin-info-mgmt-btn');
         if (infoMgmtBtn) infoMgmtBtn.addEventListener('click', () => showProfessorInfoMgmtDrawer('info'));
+
+        // Sidebar Navigation
+        document.querySelectorAll('.wizard-step').forEach(stepEl => {
+            stepEl.addEventListener('click', () => {
+                const stepNum = parseInt(stepEl.dataset.step);
+                if (stepNum > 1 && !selectedCourseId) {
+                    alert('먼저 과목을 선택해주세요.');
+                    return;
+                }
+                goToStep(stepNum);
+            });
+        });
 
         try {
             if (isProfessorSessionExpired()) {

@@ -1168,71 +1168,76 @@ select.form-input option {
     display: block;
 }
 
-.wizard-steps {
+/* Layout Flex */
+.admin-layout-flex {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-2xl);
+    flex-direction: row;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+/* Sidebar */
+.admin-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 20px 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 20px;
+    /* To ensure it has enough height if content is short, though flex does this partially */
+    min-height: calc(100vh - 120px); 
+}
+
+.admin-sidebar-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .wizard-step {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-}
-
-.step-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8125rem;
-    font-weight: 700;
-    border: 2px solid var(--border-glass);
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
     color: var(--text-muted);
-    background: transparent;
-    transition: all var(--transition-normal);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
 }
 
-.wizard-step.active .step-circle {
-    border-color: #818cf8;
-    background: rgba(99, 102, 241, 0.15);
-    color: #a5b4fc;
-}
-
-.wizard-step.completed .step-circle {
-    border-color: #10b981;
-    background: rgba(16, 185, 129, 0.15);
-    color: #6ee7b7;
-}
-
-.step-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    transition: color var(--transition-normal);
-}
-
-.wizard-step.active .step-label {
+.wizard-step:hover {
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text-primary);
+}
+
+.wizard-step.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.3);
+    color: #a5b4fc;
     font-weight: 600;
 }
 
-.wizard-step.completed .step-label {
-    color: #6ee7b7;
+.step-label {
+    flex: 1;
 }
 
-.step-connector {
-    width: 32px;
-    height: 2px;
-    background: var(--border-glass);
-    transition: background var(--transition-normal);
+.step-status {
+    font-size: 14px;
+    width: 20px;
+    text-align: right;
 }
 
-.step-connector.completed {
-    background: #10b981;
+/* Content Area */
+.admin-content {
+    flex: 1;
+    min-width: 0;
 }
 
 .wizard-card {
