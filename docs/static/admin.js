@@ -2190,7 +2190,7 @@
             '분반', '소속', '학번', '성명',
             ...evalHeaders,
             '가산점', '가산점 메모', '특별점수', '특별점수 메모',
-            '최종 총점', '석차', '최종 학점',
+            '최종 총점', '성적', '출석', '석차', '최종 학점',
             '상대평가 제외', '상대평가 제외 사유', 'F 사유', '비고'
         ];
         const aoa = [headers];
@@ -2200,6 +2200,10 @@
                 const val = st[`${item.id}_score`];
                 return val === null || val === undefined ? '' : val;
             });
+            const attendanceScoreVal = parseFloat(st.attendance_score) || 0;
+            const totalScoreVal = parseFloat(st.total_score) || 0;
+            const finalScoreVal = Math.min(70, totalScoreVal - attendanceScoreVal);
+
             aoa.push([
                 st.class_num || '',
                 st.department || '',
@@ -2211,6 +2215,8 @@
                 st.special_score || '',
                 st.special_memo || '',
                 st.total_score ?? '',
+                Number(finalScoreVal.toFixed(1)),
+                Number(attendanceScoreVal.toFixed(1)),
                 st.rank || '',
                 st.grade || '',
                 st.is_relative_excluded ? 'Y' : 'N',
