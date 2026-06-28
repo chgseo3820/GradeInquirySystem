@@ -127,6 +127,22 @@ def extract_phone_last4(phone: str) -> str:
     return digits[-4:] if len(digits) >= 4 else digits
 
 
+def has_relative_exclusion_marker(value) -> bool:
+    text = str(value or "").replace(" ", "")
+    return "상대평가제외" in text
+
+
+def unique_non_empty(values) -> list[str]:
+    result = []
+    seen = set()
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            result.append(text)
+            seen.add(text)
+    return result
+
+
 def find_header_idx(headers, keywords, exclude_keywords=None):
     """헤더 행에서 키워드 기반 컬럼 인덱스 탐색"""
     for idx, h in enumerate(headers):
@@ -254,6 +270,13 @@ def load_excel():
         remark = get_val("remark") or ""
         dept = get_val("department") or ""
         student_name = get_val("name") or ""
+        relative_exclusion_reason = " / ".join(
+            unique_non_empty([
+                extra_memo,
+                remark if has_relative_exclusion_marker(remark) else "",
+            ])
+        )
+        is_relative_excluded = bool(relative_exclusion_reason)
 
         # 평가항목 합계 구하기
         eval_sum = 0.0
@@ -285,6 +308,8 @@ def load_excel():
             "grade": grade,
             "absences": absences,
             "remark": remark,
+            "relative_exclusion_reason": relative_exclusion_reason,
+            "is_relative_excluded": is_relative_excluded,
         }
 
         for ev in dynamic_evals:

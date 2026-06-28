@@ -64,9 +64,25 @@ def extract_phone_last4(phone):
 
 
 def make_hash_key(student_id, phone_last4, access_code):
-    """SHA-256 해시 키 생성 — 원본 역추적 방지"""
+    """SHA-256 해시 키 생성 - 원본 역추적 방지"""
     raw = f"{student_id}|{phone_last4}|{access_code}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def has_relative_exclusion_marker(value):
+    text = str(value or "").replace(" ", "")
+    return "상대평가제외" in text
+
+
+def unique_non_empty(values):
+    result = []
+    seen = set()
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            result.append(text)
+            seen.add(text)
+    return result
 
 
 def build():
@@ -210,6 +226,13 @@ def build():
         remark = get_val("remark") or ""
         dept = get_val("department") or ""
         student_name = get_val("name") or ""
+        relative_exclusion_reason = " / ".join(
+            unique_non_empty([
+                extra_memo,
+                remark if has_relative_exclusion_marker(remark) else "",
+            ])
+        )
+        is_relative_excluded = bool(relative_exclusion_reason)
 
         # 평가항목 합계 구하기
         eval_sum = 0.0
@@ -240,6 +263,8 @@ def build():
             "grade": grade,
             "absences": absences,
             "remark": remark,
+            "relative_exclusion_reason": relative_exclusion_reason,
+            "is_relative_excluded": is_relative_excluded,
         }
         
         for ev in dynamic_evals:

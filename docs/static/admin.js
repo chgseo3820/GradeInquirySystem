@@ -69,6 +69,47 @@
         return false;
     }
 
+    function uniqueNonEmpty(values) {
+        const seen = new Set();
+        const result = [];
+        values.forEach(value => {
+            const text = String(value || '').trim();
+            if (text && !seen.has(text)) {
+                seen.add(text);
+                result.push(text);
+            }
+        });
+        return result;
+    }
+
+    function hasRelativeExclusionMarker(text) {
+        const normalized = String(text || '').replace(/\s+/g, '');
+        return normalized.includes('상대평가제외');
+    }
+
+    function getRelativeExclusionReason(st) {
+        const remark = String(st.remark || '').trim();
+        const reasonParts = [
+            st.relative_exclusion_reason,
+            st.exclude_reason,
+            st.extra_memo
+        ];
+        if (hasRelativeExclusionMarker(remark)) {
+            reasonParts.push(remark);
+        }
+        return uniqueNonEmpty(reasonParts).join(' / ');
+    }
+
+    function applyRelativeExclusionMemo(st) {
+        const reason = getRelativeExclusionReason(st);
+        if (reason) {
+            st.relative_exclusion_reason = reason;
+            st.is_relative_excluded = true;
+        } else if (st.is_relative_excluded === undefined) {
+            st.is_relative_excluded = false;
+        }
+    }
+
     // ── DOM References ──
     const modeSection    = document.getElementById('mode-section');
     const adminSection   = document.getElementById('admin-section');
@@ -2466,10 +2507,7 @@
         });
 
         studentList.forEach(st => {
-            if (st.is_relative_excluded === undefined) {
-                const isExcluded = st.remark && (st.remark.includes('상대평가 제외') || st.remark.includes('상대평가제외'));
-                st.is_relative_excluded = !!isExcluded;
-            }
+            applyRelativeExclusionMemo(st);
         });
 
         // Group by class_num
@@ -2699,7 +2737,10 @@
 
             const checkedExclude = st.is_relative_excluded ? 'checked' : '';
             const checkedF = st.is_f ? ' (자동 F)' : '';
-            const remarkText = st.f_reason ? `🚫 ${st.f_reason}` : (st.remark || '-');
+            const exclusionReason = getRelativeExclusionReason(st);
+            const remarkText = st.f_reason
+                ? `🚫 ${st.f_reason}`
+                : (st.is_relative_excluded && exclusionReason ? `상대평가 제외: ${exclusionReason}` : (st.remark || '-'));
 
             const disabledAttr = isAttendanceF ? 'disabled' : '';
             const cursorStyle = isAttendanceF ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;';
@@ -3319,13 +3360,14 @@
         });
 
         // 성적, 석차, 평점 및 가산점, 특별점수 등
-        ['total', 'rank', 'grade', 'absences', 'remark', 'extra', 'extraMemo', 'special', 'specialMemo'].forEach(key => {
+        ['total', 'rank', 'grade', 'absences', 'remark', 'exclude', 'extra', 'extraMemo', 'special', 'specialMemo'].forEach(key => {
             const labels = {
                 total: '합계(성적)',
                 rank: '석차',
                 grade: '평점',
                 absences: '결석',
                 remark: '비고',
+                exclude: '상대평가제외',
                 extra: '가산점',
                 extraMemo: '가산메모',
                 special: '특별점수',
@@ -3718,6 +3760,7 @@
             const classNum = mapping.classNum ? (parseInt(row[mapping.classNum]) || 1) : 1;
             const absences = mapping.absences ? (parseInt(row[mapping.absences]) || 0) : 0;
             const remark = mapping.remark ? String(row[mapping.remark] || '').trim() : '';
+            const excludeReason = mapping.exclude ? String(row[mapping.exclude] || '').trim() : '';
             const grade = mapping.grade ? String(row[mapping.grade] || '').trim() : '';
             const rank = mapping.rank ? String(row[mapping.rank] || '').trim() : '';
             const totalScore = mapping.total ? (parseFloat(row[mapping.total]) || 0) : 0;
@@ -3822,6 +3865,9 @@
                 grade: finalGrade,
                 absences: absences,
                 remark: remark,
+                exclude_reason: excludeReason,
+                relative_exclusion_reason: uniqueNonEmpty([excludeReason, extraMemo]).join(' / '),
+                is_relative_excluded: !!(excludeReason || extraMemo || hasRelativeExclusionMarker(remark)),
                 is_f: finalIsF,
                 f_reason: finalFReason,
                 _cRow: cRowRef // 임시 참조 저장
