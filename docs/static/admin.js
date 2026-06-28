@@ -5771,7 +5771,7 @@
     function sendApprovalRequestMail(user) {
         // 1. 가입 신청 정보 텍스트 생성
         const infoText = 
-            `[ScoreQuery 가입 신청 정보]\n` +
+            `[Grade Inquiry System 가입 신청 정보]\n` +
             `- 신청자 성명: ${user.name}\n` +
             `- 소속 대학교: ${user.univ || '-'}\n` +
             `- 소속 학과: ${user.dept}\n` +
@@ -5791,7 +5791,7 @@
             alert('가입 신청 정보를 복사하지 못했습니다. 수동 메일 발송 화면을 실행합니다.');
             // 실패 시 기존 메일 클라이언트 및 모달 폴백
             const to = 'armour@tu.ac.kr';
-            const subjectText = `[ScoreQuery] 교수자 회원가입 승인 요청 - ${user.name} 교수`;
+            const subjectText = `[Grade Inquiry System] 교수자 회원가입 승인 요청 - ${user.name} 교수`;
             sendMail(to, subjectText, infoText);
         });
     }
@@ -6101,10 +6101,10 @@
         if (remoteResult.source === 'local') {
             // 로컬 오프라인 모드에서는 메일 클라이언트/모달 발송 연동
             const to = targetUser.email;
-            const subjectText = '[ScoreQuery] 교수 회원가입 승인 완료 안내';
+            const subjectText = '[Grade Inquiry System] 교수 회원가입 승인 완료 안내';
             const bodyText = 
                 `${targetUser.name} 교수님 안녕하십니까,\n\n` +
-                `성적 조회 및 관리 시스템(ScoreQuery)의 교수 회원가입 신청이 성공적으로 승인 완료되었음을 알려드립니다.\n\n` +
+                `성적관리,조회시스템(Grade Inquiry System)의 교수 회원가입 신청이 성공적으로 승인 완료되었음을 알려드립니다.\n\n` +
                 `이제 아래의 시스템 주소로 접속하신 뒤, 등록하신 교수 이메일(${targetUser.email})과 설정하신 비밀번호로 로그인하여 시스템에 진입하실 수 있습니다.\n\n` +
                 `- 시스템 접속 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n` +
                 `감사합니다.\n` +
@@ -6172,10 +6172,10 @@
         if (!resetHandled) {
             // 로컬 오프라인 모드 메일 발송
             const to = targetUser.email;
-            const subjectText = '[ScoreQuery] 교수자 계정 비밀번호 초기화 안내';
+            const subjectText = '[Grade Inquiry System] 교수자 계정 비밀번호 초기화 안내';
             const bodyText = 
                 `${targetUser.name} 교수님 안녕하십니까,\n\n` +
-                `요청하신 ScoreQuery 교수자 계정의 비밀번호가 임시 비밀번호로 초기화되었습니다.\n\n` +
+                `요청하신 Grade Inquiry System 교수자 계정의 비밀번호가 임시 비밀번호로 초기화되었습니다.\n\n` +
                 `- 이메일 ID: ${targetUser.email}\n` +
                 `- 임시 비밀번호: ${tempPw}\n\n` +
                 `아래의 시스템 주소로 접속하신 후, 임시 비밀번호로 로그인하여 안전한 비밀번호로 변경하여 사용해 주시기 바랍니다.\n\n` +
@@ -6991,7 +6991,7 @@
                             </div>
                             
                             <div style="color: var(--text-primary); margin-top: 10px;">
-                                • 에디터 상단의 <strong>[저장]</strong> 아이콘(디스켓 모양)을 클릭하거나 \`Ctrl + S\`를 눌러 저장합니다. (프로젝트명은 예: <i>ScoreQueryMailer</i> 로 자유롭게 작성)
+                                • 에디터 상단의 <strong>[저장]</strong> 아이콘(디스켓 모양)을 클릭하거나 \`Ctrl + S\`를 눌러 저장합니다. (프로젝트명은 예: <i>GradeInquiryMailer</i> 로 자유롭게 작성)
                             </div>
                         </div>
 
@@ -7003,11 +7003,11 @@
                                 • 유형 선택(톱니바퀴 아이콘)을 누르고 <strong>[웹 앱]</strong> (Web App)을 선택합니다.<br>
                                 • 옵션 설정 값을 아래 내용과 **정확하게 동일하게 지정**해야 합니다 (틀릴 시 작동 불가):
                                 <div style="background: rgba(15, 23, 42, 0.4); border-left: 3px solid #0ea5e9; padding: 10px 14px; margin: 10px 0; border-radius: 4px; font-size: 12px; line-height: 1.7;">
-                                    1. <strong>설명</strong>: <span style="color: var(--text-secondary);">ScoreQuery Mail Service (자유 입력)</span><br>
+                                    1. <strong>설명</strong>: <span style="color: var(--text-secondary);">Grade Inquiry Mail Service (자유 입력)</span><br>
                                     2. <strong>웹 앱을 실행할 사용자</strong>: <strong style="color: #38bdf8;">나 (본인 이메일 계정)</strong><br>
                                     3. <strong>액세스 권한이 있는 사용자</strong>: <strong style="color: #ef4444;">모든 사용자 (Anyone)</strong>
                                 </div>
-                                <span style="font-size: 11px; color: #fbbf24; display: block; margin-bottom: 8px;">⚠️ \'액세스 권한이 있는 사용자\'를 \'모든 사용자(Anyone)\'로 개방하지 않으면, ScoreQuery 대시보드 브라우저 환경에서 API 호출 시 권한 차단(CORS 정책 위반) 에러가 발생합니다.</span>
+                                <span style="font-size: 11px; color: #fbbf24; display: block; margin-bottom: 8px;">⚠️ \'액세스 권한이 있는 사용자\'를 \'모든 사용자(Anyone)\'로 개방하지 않으면, 대시보드 브라우저 환경에서 API 호출 시 권한 차단(CORS 정책 위반) 에러가 발생합니다.</span>
                                 • 하단의 <strong>[배포]</strong> (Deploy) 버튼을 클릭합니다.
                             </div>
                         </div>
