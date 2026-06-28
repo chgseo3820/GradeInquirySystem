@@ -20,6 +20,12 @@
     // ── State ──
     let currentStep = 1;
     let currentUser = null; // 로그인 세션 변수 추가
+    const PROFESSOR_SESSION_KEY = 'scorequery_session';
+    const PROFESSOR_SESSION_LAST_ACTIVITY_KEY = 'scorequery_session_last_activity';
+    const PROFESSOR_SESSION_TIMEOUT_MS = 10 * 60 * 1000;
+    let professorSessionTimeoutId = null;
+    let professorSessionLastTouch = 0;
+    let professorSessionTimedOut = false;
     let adminConfig = {
         professor: { name: '', email: '', phone: '' },
         course: { year: '', semester: '', name: '' },
@@ -236,14 +242,128 @@
         }
     }
 
+    function clearProfessorSession() {
+        sessionStorage.removeItem(PROFESSOR_SESSION_KEY);
+        sessionStorage.removeItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY);
+        professorSessionLastTouch = 0;
+        if (professorSessionTimeoutId) {
+            clearTimeout(professorSessionTimeoutId);
+            professorSessionTimeoutId = null;
+        }
+    }
+
+    function getProfessorSessionLastActivity() {
+        const raw = sessionStorage.getItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY);
+        const value = raw ? Number(raw) : 0;
+        return Number.isFinite(value) && value > 0 ? value : 0;
+    }
+
+    function isProfessorSessionExpired() {
+        if (!sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return false;
+        const lastActivity = getProfessorSessionLastActivity();
+        if (!lastActivity) return false;
+        return Date.now() - lastActivity > PROFESSOR_SESSION_TIMEOUT_MS;
+    }
+
+    function hydrateSessionUser(user) {
+        if (!user || !user.email) return user;
+        if (user.pw || user._authProvider === 'server') return user;
+        try {
+            const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
+            const matched = users.find(u => u.email === user.email);
+            return matched ? { ...matched, ...user, pw: matched.pw || user.pw } : user;
+        } catch (e) {
+            return user;
+        }
+    }
+
+    function touchProfessorSessionActivity(force = false) {
+        if (!currentUser && !sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return;
+        if (isProfessorSessionExpired()) {
+            handleLogoutAction({ reason: 'timeout' });
+            return;
+        }
+        const now = Date.now();
+        if (!force && now - professorSessionLastTouch < 30000) return;
+        professorSessionLastTouch = now;
+        sessionStorage.setItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY, String(now));
+        scheduleProfessorSessionTimeout();
+    }
+
+    function scheduleProfessorSessionTimeout() {
+        if (professorSessionTimeoutId) {
+            clearTimeout(professorSessionTimeoutId);
+            professorSessionTimeoutId = null;
+        }
+        if (!sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return;
+
+        const lastActivity = getProfessorSessionLastActivity() || Date.now();
+        const remaining = Math.max(PROFESSOR_SESSION_TIMEOUT_MS - (Date.now() - lastActivity), 0);
+        professorSessionTimeoutId = setTimeout(() => {
+            if (isProfessorSessionExpired()) {
+                handleLogoutAction({ reason: 'timeout' });
+            } else {
+                scheduleProfessorSessionTimeout();
+            }
+        }, remaining + 250);
+    }
+
+    function getStoredProfessorSessionUser() {
+        const sess = sessionStorage.getItem(PROFESSOR_SESSION_KEY);
+        if (!sess) return null;
+        if (isProfessorSessionExpired()) {
+            clearProfessorSession();
+            return null;
+        }
+        try {
+            const user = hydrateSessionUser(JSON.parse(sess));
+            if (!getProfessorSessionLastActivity()) {
+                touchProfessorSessionActivity(true);
+            }
+            scheduleProfessorSessionTimeout();
+            return user;
+        } catch (e) {
+            clearProfessorSession();
+            return null;
+        }
+    }
+
+    function bindProfessorSessionActivityTracking() {
+        ['click', 'keydown', 'input', 'scroll', 'touchstart', 'pointerdown', 'mousemove'].forEach(eventName => {
+            document.addEventListener(eventName, handleProfessorSessionActivityEvent, { capture: true });
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                if (isProfessorSessionExpired()) {
+                    handleLogoutAction({ reason: 'timeout' });
+                } else {
+                    touchProfessorSessionActivity(true);
+                }
+            }
+        });
+    }
+
+    function handleProfessorSessionActivityEvent(event) {
+        if (!currentUser && !sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return;
+        if (isProfessorSessionExpired()) {
+            if (event.cancelable) event.preventDefault();
+            event.stopImmediatePropagation();
+            handleLogoutAction({ reason: 'timeout' });
+            return;
+        }
+        touchProfessorSessionActivity();
+    }
+
     function routeAuthenticatedUser(user) {
+        user = hydrateSessionUser(user);
         if (!user || (!user.pw && user._authProvider !== 'server')) {
-            sessionStorage.removeItem('scorequery_session');
+            clearProfessorSession();
             currentUser = null;
             handleLogoutAction();
             return;
         }
         currentUser = user;
+        storeCurrentSession(user);
         if (user.isMaster === true || user.isMaster === 'true') {
             showMasterDashboard();
             return;
@@ -265,8 +385,9 @@
 
     function storeCurrentSession(user) {
         const sessionUser = { ...(user || {}) };
-        delete sessionUser.pw;
-        sessionStorage.setItem('scorequery_session', JSON.stringify(sessionUser));
+        professorSessionTimedOut = false;
+        sessionStorage.setItem(PROFESSOR_SESSION_KEY, JSON.stringify(sessionUser));
+        touchProfessorSessionActivity(true);
     }
 
     // ── DOM References ──
@@ -281,6 +402,10 @@
     const modeAdminBtn   = document.getElementById('mode-admin-btn');
     const modeStudentBtn = document.getElementById('mode-student-btn');
     const loginBackBtn   = document.getElementById('login-back-btn');
+
+    document.addEventListener('click', handleStatsModalActionClick, true);
+    document.addEventListener('keydown', handleStatsModalKeydown);
+    bindProfessorSessionActivityTracking();
 
     // ── Initialize ──
     try {
@@ -338,29 +463,35 @@
         topBarTitle.textContent = '⚙️ 교수 모드 — 과목 설정';
         topBarProf.textContent = '';
 
-        const serverUser = await getServerSessionUser();
-        if (serverUser) {
-            storeCurrentSession(serverUser);
-            routeAuthenticatedUser(serverUser);
+        if (isProfessorSessionExpired()) {
+            await handleLogoutAction({ reason: 'timeout' });
             return;
         }
 
-        // 세션 로드 체크 후 분기
-        const sess = sessionStorage.getItem('scorequery_session');
-        if (sess) {
-            const user = JSON.parse(sess);
-            routeAuthenticatedUser(user);
-        } else {
-            // 로그인 화면 노출
-            document.getElementById('admin-auth-panel').style.display = '';
-            document.getElementById('admin-login-card').style.display = '';
-            document.getElementById('admin-register-card').style.display = 'none';
-            const forgotCard0 = document.getElementById('admin-forgot-pw-card');
-            if (forgotCard0) forgotCard0.style.display = 'none';
-            document.getElementById('admin-pending-panel').style.display = 'none';
-            document.getElementById('admin-master-panel').style.display = 'none';
-            document.getElementById('admin-wizard-container').style.display = 'none';
+        const storedUser = getStoredProfessorSessionUser();
+        if (storedUser) {
+            routeAuthenticatedUser(storedUser);
+            return;
         }
+
+        if (!professorSessionTimedOut) {
+            const serverUser = await getServerSessionUser();
+            if (serverUser) {
+                storeCurrentSession(serverUser);
+                routeAuthenticatedUser(serverUser);
+                return;
+            }
+        }
+
+        // 로그인 화면 노출
+        document.getElementById('admin-auth-panel').style.display = '';
+        document.getElementById('admin-login-card').style.display = '';
+        document.getElementById('admin-register-card').style.display = 'none';
+        const forgotCard0 = document.getElementById('admin-forgot-pw-card');
+        if (forgotCard0) forgotCard0.style.display = 'none';
+        document.getElementById('admin-pending-panel').style.display = 'none';
+        document.getElementById('admin-master-panel').style.display = 'none';
+        document.getElementById('admin-wizard-container').style.display = 'none';
     }
 
     // ──────────────────────────────────────────────
@@ -1956,6 +2087,9 @@
             if (rawData) break;
         }
         if (!rawData) {
+            if (pendingUploadData && pendingUploadData.students && Object.keys(pendingUploadData.students).length > 0) {
+                return pendingUploadData;
+            }
             if (showAlert) alert('성적 데이터가 없습니다. 먼저 성적 파일을 업로드하고 최종 확정해 주세요.');
             return null;
         }
@@ -2021,6 +2155,11 @@
     }
 
     function downloadFinalGradesExcel() {
+        if (typeof XLSX === 'undefined') {
+            alert('Excel 라이브러리가 아직 로드되지 않았습니다. 네트워크 연결을 확인한 뒤 새로고침해 주세요.');
+            return;
+        }
+
         const parsed = getStoredCourseData(true);
         if (!parsed) return;
 
@@ -2099,7 +2238,12 @@
             '최종성적처리',
             safeFileNamePart(professor.name, '교수명')
         ].join('_') + '.xlsx';
-        XLSX.writeFile(wb, filename);
+        try {
+            XLSX.writeFile(wb, filename);
+        } catch (err) {
+            console.error('Error writing final grades Excel file:', err);
+            alert('최종 성적 처리 파일 다운로드 중 오류가 발생했습니다. 브라우저 다운로드 권한과 팝업/다운로드 차단 설정을 확인해 주세요.');
+        }
     }
 
     function bytesToBase64(bytes) {
@@ -2878,6 +3022,28 @@
             } else {
                 if (rulesWarning) rulesWarning.style.display = 'none';
                 if (btnRun) btnRun.removeAttribute('disabled');
+            }
+            
+            // Visual bar update
+            const barA = document.getElementById('bar-a');
+            const barB = document.getElementById('bar-b');
+            const barC = document.getElementById('bar-c');
+            const barD = document.getElementById('bar-d');
+            if (barA && barB && barC && barD) {
+                const valA = parseFloat(inputs[0].value) || 0;
+                const valB = parseFloat(inputs[1].value) || 0;
+                const valC = parseFloat(inputs[2].value) || 0;
+                const valD = parseFloat(inputs[3].value) || 0;
+                const total = valA + valB + valC + valD;
+                const divTotal = total > 0 ? total : 100;
+                barA.style.width = `%`;
+                barA.textContent = `A (%)`;
+                barB.style.width = `%`;
+                barB.textContent = `B (%)`;
+                barC.style.width = `%`;
+                barC.textContent = `C (%)`;
+                barD.style.width = `%`;
+                barD.textContent = `D (%)`;
             }
         }
 
@@ -4487,10 +4653,7 @@
         // Mode selection
         modeStudentBtn.addEventListener('click', enterStudentMode);
         modeAdminBtn.addEventListener('click', enterAdminMode);
-        loginBackBtn.addEventListener('click', () => {
-            handleLogoutAction();
-            showModeSelection();
-        });
+        loginBackBtn.addEventListener('click', showModeSelection);
 
         // Load config toggle & auth
         document.getElementById('btn-load-toggle').addEventListener('click', () => {
@@ -4748,7 +4911,7 @@
         });
 
         if (filtered.length !== users.length) {
-            sessionStorage.removeItem('scorequery_session');
+            clearProfessorSession();
         }
         localStorage.setItem('scorequery_users', JSON.stringify(filtered));
     }
@@ -4945,18 +5108,21 @@
         if (infoMgmtBtn) infoMgmtBtn.addEventListener('click', () => showProfessorInfoMgmtDrawer('info'));
 
         try {
-            const serverUser = await getServerSessionUser();
-            if (serverUser) {
-                storeCurrentSession(serverUser);
-                routeAuthenticatedUser(serverUser);
-                bindManualDrawerEvents();
-                return;
-            }
-
-            const sess = sessionStorage.getItem('scorequery_session');
-            if (sess) {
-                const user = JSON.parse(sess);
-                routeAuthenticatedUser(user);
+            if (isProfessorSessionExpired()) {
+                await handleLogoutAction({ reason: 'timeout' });
+            } else {
+                const storedUser = getStoredProfessorSessionUser();
+                if (storedUser) {
+                    routeAuthenticatedUser(storedUser);
+                } else if (!professorSessionTimedOut) {
+                    const serverUser = await getServerSessionUser();
+                    if (serverUser) {
+                        storeCurrentSession(serverUser);
+                        routeAuthenticatedUser(serverUser);
+                        bindManualDrawerEvents();
+                        return;
+                    }
+                }
             }
         } catch (e) {
             console.error('Session load error:', e);
@@ -6095,7 +6261,8 @@
         }
     }
 
-    async function handleLogoutAction() {
+    async function handleLogoutAction(options = {}) {
+        professorSessionTimedOut = options.reason === 'timeout';
         const shouldLogoutServer = currentUser && currentUser._authProvider === 'server';
         if (shouldLogoutServer) {
             try {
@@ -6105,7 +6272,7 @@
             }
         }
         currentUser = null;
-        sessionStorage.removeItem('scorequery_session');
+        clearProfessorSession();
         
         const loginForm = document.getElementById('admin-login-form');
         if (loginForm) loginForm.reset();
@@ -6137,6 +6304,13 @@
 
         currentStep = 1;
         topBarTitle.textContent = '📊 성적 관리 시스템';
+        if (options.reason === 'timeout') {
+            const errEl = document.getElementById('admin-login-error');
+            if (errEl) {
+                errEl.textContent = '10분 동안 활동이 없어 자동 로그아웃되었습니다.';
+                errEl.style.display = 'block';
+            }
+        }
     }
 
     function enterAdminWizard() {
@@ -6954,15 +7128,68 @@
         switchStatsFilter('all');
     }
 
-    function closeStatsDetailModal() {
+    function closeStatsDetailModal(immediate = false) {
         const modal = document.getElementById('stats-detail-modal');
         if (!modal) return;
         modal.classList.remove('active');
+        if (immediate) {
+            modal.style.display = 'none';
+            return;
+        }
         setTimeout(() => {
             if (!modal.classList.contains('active')) {
                 modal.style.display = 'none';
             }
         }, 300);
+    }
+
+    function handleStatsModalActionClick(event) {
+        const target = event.target;
+        if (!target || !target.closest) return;
+        if (isProfessorSessionExpired()) {
+            if (event.cancelable) event.preventDefault();
+            event.stopImmediatePropagation();
+            handleLogoutAction({ reason: 'timeout' });
+            return;
+        }
+
+        const closeBtn = target.closest('#btn-stats-modal-close, #btn-stats-modal-close-x');
+        if (closeBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeStatsDetailModal(true);
+            return;
+        }
+
+        const excelBtn = target.closest('#btn-stats-excel-download, #btn-view-stats-download');
+        if (excelBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            downloadStatsExcel();
+            return;
+        }
+
+        const finalGradesBtn = target.closest('#btn-download-final-grades');
+        if (finalGradesBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            downloadFinalGradesExcel();
+            return;
+        }
+
+        const modal = document.getElementById('stats-detail-modal');
+        if (modal && target === modal) {
+            event.preventDefault();
+            closeStatsDetailModal(true);
+        }
+    }
+
+    function handleStatsModalKeydown(event) {
+        if (event.key !== 'Escape') return;
+        const modal = document.getElementById('stats-detail-modal');
+        if (modal && modal.style.display !== 'none') {
+            closeStatsDetailModal(true);
+        }
     }
 
     function switchStatsFilter(filterType) {
@@ -7197,6 +7424,11 @@
     }
 
     function writeViewStatsWorkbook(course, studentsList, sourceLabel) {
+        if (typeof XLSX === 'undefined') {
+            alert('Excel 라이브러리가 아직 로드되지 않았습니다. 네트워크 연결을 확인한 뒤 새로고침해 주세요.');
+            return;
+        }
+
         const sortedList = [...studentsList].sort((a, b) => String(a.sid || '').localeCompare(String(b.sid || ''), 'ko', { numeric: true }));
         let filteredList = sortedList;
         let filterLabel = '전체';
@@ -7244,12 +7476,20 @@
             filterLabel,
             sourceLabel
         ].join('_') + '.xlsx';
-        XLSX.writeFile(wb, filename);
+        try {
+            XLSX.writeFile(wb, filename);
+        } catch (err) {
+            console.error('Error writing view stats Excel file:', err);
+            alert('Excel 파일 다운로드 중 오류가 발생했습니다. 브라우저 다운로드 권한과 팝업/다운로드 차단 설정을 확인해 주세요.');
+        }
     }
 
     function downloadStatsExcel() {
         const { course } = adminConfig;
-        if (!course || !course.name) return;
+        if (!course || !course.name) {
+            alert('과목 정보가 없어 열람 현황 Excel을 다운로드할 수 없습니다.');
+            return;
+        }
 
         try {
             const cached = sessionStorage.getItem(`scorequery_server_view_stats_${getCourseId(course)}`);

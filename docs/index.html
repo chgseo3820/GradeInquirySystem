@@ -937,6 +937,12 @@
                             <!-- 2. 구간별 비율/인원 설정 입력 -->
                             <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
                                 <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;" id="grading-rules-title">구간별 비율 설정 (총합 100%)</div>
+                                <div style="display:flex; height:24px; border-radius:12px; overflow:hidden; margin-bottom: 16px; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);" id="grading-visual-bar">
+                                    <div id="bar-a" style="width: 30%; background: linear-gradient(90deg, #2563eb, #3b82f6); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:white; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-shadow: 0 1px 2px rgba(0,0,0,0.4);">A (30%)</div>
+                                    <div id="bar-b" style="width: 40%; background: linear-gradient(90deg, #059669, #10b981); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:white; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-shadow: 0 1px 2px rgba(0,0,0,0.4);">B (40%)</div>
+                                    <div id="bar-c" style="width: 20%; background: linear-gradient(90deg, #d97706, #f59e0b); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:white; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-shadow: 0 1px 2px rgba(0,0,0,0.4);">C (20%)</div>
+                                    <div id="bar-d" style="width: 10%; background: linear-gradient(90deg, #dc2626, #ef4444); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:white; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-shadow: 0 1px 2px rgba(0,0,0,0.4);">D (10%)</div>
+                                </div>
                                 <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:16px;">
                                     <!-- A 등급 -->
                                     <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
@@ -1050,7 +1056,11 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="preview-table-wrap" style="border: 1px solid var(--border-glass); border-radius: 6px; overflow: hidden;">
+                                <div style="display:flex; flex-direction:column; gap: 16px;">
+                                    <div style="height: 220px; display: flex; justify-content: center; align-items: center; background:rgba(15,23,42,0.4); border-radius: 8px; border: 1px solid var(--border-glass); padding: 10px; position: relative;">
+                                        <canvas id="grading-chartCanvas"></canvas>
+                                    </div>
+                                    <div class="preview-table-wrap" style="border: 1px solid var(--border-glass); border-radius: 6px; overflow: hidden;">
                                     <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
                                         <thead>
                                             <tr style="background:rgba(255,255,255,0.05); color:var(--text-main); font-weight:600;">
@@ -1065,6 +1075,7 @@
                                             <!-- JS에서 동적으로 대조 데이터 주입 -->
                                         </tbody>
                                     </table>
+                                </div>
                                 </div>
                             </div>
 
@@ -1141,7 +1152,7 @@
                                             <button class="pipe-btn" id="btn-unpublish" style="padding:10px 24px;opacity:0.6;cursor:pointer;">🚫 공시 취소</button>
                                         </div>
                                         <div class="publish-actions" style="margin-top: 10px;">
-                                            <button type="button" class="pipe-btn" id="btn-download-final-grades" style="padding:10px 24px;">📥 최종 성적 처리 파일 다운로드</button>
+                                            <button type="button" class="pipe-btn active" id="btn-download-final-grades" style="padding:10px 24px;">📥 최종 성적 처리 파일 다운로드</button>
                                         </div>
                                     </div>
                                 </div>
