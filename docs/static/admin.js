@@ -2846,8 +2846,13 @@
             let itemTds = '';
             activeEvalItems.forEach(item => {
                 const val = st[`${item.id}_score`];
-                itemTds += `<td style="padding:10px; text-align:center;">${val !== null && val !== undefined ? val : '-'}</td>`;
+                const formattedVal = val !== null && val !== undefined && !isNaN(val) ? Number(val).toFixed(1) : '-';
+                itemTds += `<td style="padding:10px; text-align:center;">${formattedVal}</td>`;
             });
+
+            const extra = st.extra_score !== null && st.extra_score !== undefined && !isNaN(st.extra_score) ? Number(st.extra_score).toFixed(1) : '0.0';
+            const special = st.special_score !== null && st.special_score !== undefined && !isNaN(st.special_score) ? Number(st.special_score).toFixed(1) : '0.0';
+            const total = st.total_score !== null && st.total_score !== undefined && !isNaN(st.total_score) ? Number(st.total_score).toFixed(1) : '-';
 
             trs += `
                 <tr style="border-bottom:1px solid var(--border-glass);">
@@ -2855,9 +2860,9 @@
                     <td style="padding:10px; text-align:center;">${displayStudentName}</td>
                     <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     ${itemTds}
-                    <td style="padding:10px; text-align:center; color:#34d399;">${st.extra_score || 0}</td>
-                    <td style="padding:10px; text-align:center; color:#fbbf24;">${st.special_score || 0}</td>
-                    <td style="padding:10px; text-align:center; font-weight:700; color:white;">${st.total_score}</td>
+                    <td style="padding:10px; text-align:center; color:#34d399;">${extra}</td>
+                    <td style="padding:10px; text-align:center; color:#fbbf24;">${special}</td>
+                    <td style="padding:10px; text-align:center; font-weight:700; color:white;">${total}</td>
                     <td style="padding:10px; text-align:center;">${st.rank || '-'}등</td>
                 </tr>
             `;
@@ -3427,13 +3432,14 @@
             const disabledAttr = isAttendanceF ? 'disabled' : '';
             const cursorStyle = isAttendanceF ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;';
 
+            const totalScoreVal = st.total_score !== null && st.total_score !== undefined && !isNaN(st.total_score) ? Number(st.total_score).toFixed(1) : '';
             trs += `
                 <tr style="border-bottom:1px solid var(--border-glass);" data-student-key="${st._studentKey}" data-student-id="${displayStudentId}" data-name="${displayStudentName}">
                     <td style="padding:10px; text-align:center; color:white;">${displayStudentId}</td>
                     <td style="padding:10px; text-align:center;">${displayStudentName}</td>
                     <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     <td style="padding:10px; text-align:center;">
-                        <input type="number" class="override-score-input" value="${st.total_score}" step="0.1" ${disabledAttr} style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; ${isAttendanceF ? 'opacity:0.6;' : ''}">
+                        <input type="number" class="override-score-input" value="${totalScoreVal}" step="0.1" ${disabledAttr} style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; ${isAttendanceF ? 'opacity:0.6;' : ''}">
                     </td>
                     <td style="padding:10px; text-align:center;">
                         <select class="override-grade-select" ${disabledAttr} style="padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); outline:none; font-weight:700; ${isAttendanceF ? 'opacity:0.6;' : ''}">
