@@ -1178,7 +1178,7 @@ select.form-input option {
 
 /* Sidebar */
 .admin-sidebar {
-    width: 220px;
+    width: 260px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -1238,6 +1238,11 @@ select.form-input option {
 .admin-content {
     flex: 1;
     min-width: 0;
+}
+
+.centered-panel-content {
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .wizard-card {

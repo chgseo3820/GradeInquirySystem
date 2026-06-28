@@ -518,12 +518,8 @@
         // 완료 상태 업데이트
         updateStepCompletionStatus();
 
-        // Step >= 4 = 레이아웃 확장 추가
+        // (wide-layout is now global for admin mode)
         if (step >= 4) {
-            adminSection.classList.add('wide-layout');
-            if (mainContainer) {
-                mainContainer.classList.add('wide-layout');
-            }
             if (step === 4) {
                 renderCourseSelector();
                 renderCompleteSummary();
@@ -536,15 +532,7 @@
                 showPublishArea();
             }
         } else {
-            // 다른 단계로 복귀 시 마스터 패널이 활성화되어 있지 않다면 wide-layout 제거
-            const masterPanel = document.getElementById('admin-master-panel');
-            const isMasterActive = masterPanel && masterPanel.style.display !== 'none';
-            if (!isMasterActive) {
-                adminSection.classList.remove('wide-layout');
-                if (mainContainer) {
-                    mainContainer.classList.remove('wide-layout');
-                }
-            }
+            // No longer removing wide-layout here, as it's global for admin wizard
         }
 
         // Step 2 = 과목명 자동완성 목록 채우기 및 배경/저장버튼 관리
@@ -6440,10 +6428,10 @@
         document.getElementById('admin-master-panel').style.display = 'none';
         document.getElementById('admin-wizard-container').style.display = '';
 
-        // 교수 마법사 진입 시 레이아웃 복원
-        adminSection.classList.remove('wide-layout');
+        // 교수 마법사 진입 시 전체 화면 래이아웃 활성화
+        adminSection.classList.add('wide-layout');
         if (mainContainer) {
-            mainContainer.classList.remove('wide-layout');
+            mainContainer.classList.add('wide-layout');
         }
 
         // 1. 기존 설정 로드하여 복원 (확인 절차 생략)
