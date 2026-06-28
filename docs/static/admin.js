@@ -2186,11 +2186,43 @@
         const activeEvalItems = getActiveEvalItems();
         container.innerHTML = '';
 
+        const N = activeEvalItems.length;
+        const initialRanks = new Array(N).fill(0);
+        
+        let attendanceIdx = activeEvalItems.findIndex(item => item.label.includes('출석'));
+        let finalIdx = activeEvalItems.findIndex(item => item.label.includes('기말'));
+        let midtermIdx = activeEvalItems.findIndex(item => item.label.includes('중간'));
+
+        const assignedValues = new Set();
+
+        if (attendanceIdx !== -1) {
+            initialRanks[attendanceIdx] = 1;
+            assignedValues.add(1);
+        }
+        if (finalIdx !== -1) {
+            let rank = 2;
+            while (assignedValues.has(rank) && rank <= N) rank++;
+            initialRanks[finalIdx] = Math.min(N, rank);
+            assignedValues.add(initialRanks[finalIdx]);
+        }
+        if (midtermIdx !== -1) {
+            let rank = 3;
+            while (assignedValues.has(rank) && rank <= N) rank++;
+            initialRanks[midtermIdx] = Math.min(N, rank);
+            assignedValues.add(initialRanks[midtermIdx]);
+        }
+
+        let currentRank = 1;
+        for (let i = 0; i < N; i++) {
+            if (initialRanks[i] === 0) {
+                while (assignedValues.has(currentRank) && currentRank <= N) currentRank++;
+                initialRanks[i] = currentRank;
+                assignedValues.add(currentRank);
+            }
+        }
+
         activeEvalItems.forEach((item, idx) => {
-            let defaultPriority = 4;
-            if (item.label.includes('출석')) defaultPriority = 1;
-            else if (item.label.includes('기말')) defaultPriority = 2;
-            else if (item.label.includes('중간')) defaultPriority = 3;
+            const defaultPriority = initialRanks[idx];
 
             const div = document.createElement('div');
             div.style.display = 'flex';
@@ -2202,8 +2234,8 @@
             div.style.borderRadius = '6px';
 
             let optionsHtml = '';
-            for (let p = 1; p <= activeEvalItems.length; p++) {
-                const selected = p === defaultPriority || (defaultPriority === 4 && p === Math.min(activeEvalItems.length, 4 + idx)) ? 'selected' : '';
+            for (let p = 1; p <= N; p++) {
+                const selected = p === defaultPriority ? 'selected' : '';
                 optionsHtml += `<option value="${p}">${p}순위</option>`;
             }
 
@@ -2214,6 +2246,25 @@
                 </select>
             `;
             container.appendChild(div);
+        });
+
+        // 배타적(서로 중복되지 않는) 순위 선택을 위한 값 스왑 기능
+        const selects = container.querySelectorAll('.tie-breaker-select');
+        selects.forEach(select => {
+            select.dataset.previousValue = select.value;
+            select.addEventListener('change', function() {
+                const newValue = this.value;
+                const oldValue = this.dataset.previousValue;
+
+                selects.forEach(other => {
+                    if (other !== this && other.value === newValue) {
+                        other.value = oldValue;
+                        other.dataset.previousValue = oldValue;
+                    }
+                });
+
+                this.dataset.previousValue = newValue;
+            });
         });
     }
 
