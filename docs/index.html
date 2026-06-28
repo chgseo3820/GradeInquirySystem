@@ -931,21 +931,29 @@
                             <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
                                 <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;" id="grading-rules-title">구간별 비율 설정 (총합 100%)</div>
                                 <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;">
-                                    <div class="wizard-form-group" style="margin:0;">
-                                        <label style="font-size:11px; color:#60a5fa;">A 등급</label>
+                                    <div class="wizard-form-group" style="margin:0; display:flex; flex-direction:column; gap:6px;">
+                                        <label style="font-size:11px; color:#60a5fa; font-weight:600;">A 등급</label>
                                         <input type="number" id="grading-val-a" value="30" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                        <label style="font-size:10px; color:var(--text-secondary);">↳ A+ 비율 (%)</label>
+                                        <input type="number" id="grading-plus-a" value="50" min="0" max="100" placeholder="%" style="padding:6px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; font-size:11px;">
                                     </div>
-                                    <div class="wizard-form-group" style="margin:0;">
-                                        <label style="font-size:11px; color:#34d399;">B 등급</label>
+                                    <div class="wizard-form-group" style="margin:0; display:flex; flex-direction:column; gap:6px;">
+                                        <label style="font-size:11px; color:#34d399; font-weight:600;">B 등급</label>
                                         <input type="number" id="grading-val-b" value="40" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                        <label style="font-size:10px; color:var(--text-secondary);">↳ B+ 비율 (%)</label>
+                                        <input type="number" id="grading-plus-b" value="50" min="0" max="100" placeholder="%" style="padding:6px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; font-size:11px;">
                                     </div>
-                                    <div class="wizard-form-group" style="margin:0;">
-                                        <label style="font-size:11px; color:#fbbf24;">C 등급</label>
+                                    <div class="wizard-form-group" style="margin:0; display:flex; flex-direction:column; gap:6px;">
+                                        <label style="font-size:11px; color:#fbbf24; font-weight:600;">C 등급</label>
                                         <input type="number" id="grading-val-c" value="20" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                        <label style="font-size:10px; color:var(--text-secondary);">↳ C+ 비율 (%)</label>
+                                        <input type="number" id="grading-plus-c" value="50" min="0" max="100" placeholder="%" style="padding:6px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; font-size:11px;">
                                     </div>
-                                    <div class="wizard-form-group" style="margin:0;">
-                                        <label style="font-size:11px; color:#f87171;">D 등급</label>
+                                    <div class="wizard-form-group" style="margin:0; display:flex; flex-direction:column; gap:6px;">
+                                        <label style="font-size:11px; color:#f87171; font-weight:600;">D 등급</label>
                                         <input type="number" id="grading-val-d" value="10" min="0" max="100" style="padding:8px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none;">
+                                        <label style="font-size:10px; color:var(--text-secondary);">↳ D+ 비율 (%)</label>
+                                        <input type="number" id="grading-plus-d" value="50" min="0" max="100" placeholder="%" style="padding:6px; border-radius:6px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; font-size:11px;">
                                     </div>
                                 </div>
                                 <div id="grading-rules-sum-warning" style="color:#f87171; font-size:11px; margin-top:8px; display:none;">⚠️ 비율의 총합이 100%여야 합니다. (현재: <span id="grading-rules-sum-current">100</span>%)</div>

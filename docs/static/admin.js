@@ -2230,6 +2230,11 @@
         const valC = parseFloat(document.getElementById('grading-val-c').value) || 0;
         const valD = parseFloat(document.getElementById('grading-val-d').value) || 0;
 
+        const plusRatioA = parseFloat(document.getElementById('grading-plus-a').value) ?? 50;
+        const plusRatioB = parseFloat(document.getElementById('grading-plus-b').value) ?? 50;
+        const plusRatioC = parseFloat(document.getElementById('grading-plus-c').value) ?? 50;
+        const plusRatioD = parseFloat(document.getElementById('grading-plus-d').value) ?? 50;
+
         if (distType === 'ratio') {
             const sum = valA + valB + valC + valD;
             if (Math.abs(sum - 100) > 0.01) {
@@ -2332,18 +2337,20 @@
             countD = Math.max(0, N - (countA + countB + countC));
         }
 
-        for (let i = 0; i < normalStudents.length; i++) {
-            const st = normalStudents[i];
-            if (i < countA) {
-                st.main_grade = 'A';
-            } else if (i < countA + countB) {
-                st.main_grade = 'B';
-            } else if (i < countA + countB + countC) {
-                st.main_grade = 'C';
-            } else {
-                st.main_grade = 'D';
-            }
-        }
+        const aStudents = normalStudents.slice(0, countA);
+        const bStudents = normalStudents.slice(countA, countA + countB);
+        const cStudents = normalStudents.slice(countA + countB, countA + countB + countC);
+        const dStudents = normalStudents.slice(countA + countB + countC);
+
+        const countPlusA = Math.round(aStudents.length * (plusRatioA / 100));
+        const countPlusB = Math.round(bStudents.length * (plusRatioB / 100));
+        const countPlusC = Math.round(cStudents.length * (plusRatioC / 100));
+        const countPlusD = Math.round(dStudents.length * (plusRatioD / 100));
+
+        aStudents.forEach((st, idx) => st.grade = idx < countPlusA ? 'A+' : 'A0');
+        bStudents.forEach((st, idx) => st.grade = idx < countPlusB ? 'B+' : 'B0');
+        cStudents.forEach((st, idx) => st.grade = idx < countPlusC ? 'C+' : 'C0');
+        dStudents.forEach((st, idx) => st.grade = idx < countPlusD ? 'D+' : 'D0');
 
         studentList.forEach(st => {
             if (st.is_f) {
@@ -2359,17 +2366,6 @@
                 else if (st.total_score >= 70) st.grade = 'C0';
                 else if (st.total_score >= 60) st.grade = 'D0';
                 else st.grade = 'F';
-            } else {
-                const score = st.total_score;
-                if (st.main_grade === 'A') {
-                    st.grade = score >= 95 ? 'A+' : 'A0';
-                } else if (st.main_grade === 'B') {
-                    st.grade = score >= 85 ? 'B+' : 'B0';
-                } else if (st.main_grade === 'C') {
-                    st.grade = score >= 75 ? 'C+' : 'C0';
-                } else if (st.main_grade === 'D') {
-                    st.grade = score >= 65 ? 'D+' : 'D0';
-                }
             }
         });
 
