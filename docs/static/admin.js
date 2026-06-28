@@ -2001,6 +2001,7 @@
             renderStep5A();
         } else if (panelChar === 'b') {
             renderTieBreakerOptions();
+            renderCustomFRules();
             setupGradingRulesLimits();
         } else if (panelChar === 'c') {
             renderStep5C();
@@ -2012,6 +2013,51 @@
             return pendingUploadData.evaluation;
         }
         return adminConfig.evaluation;
+    }
+
+    function renderCustomFRules() {
+        const container = document.getElementById('f-rule-custom-items-container');
+        if (!container) return;
+
+        const activeEvalItems = getActiveEvalItems();
+        
+        // Exclude Attendance, Midterm, Final
+        const excludeLabels = ['출석', '중간', '기말'];
+        const eligibleItems = activeEvalItems.filter(item => 
+            !excludeLabels.some(l => item.label.includes(l)) && 
+            item.id !== 'attendance' && 
+            item.id !== 'midterm' && 
+            item.id !== 'final'
+        );
+
+        // Virtual Total Score item + eligible evaluation items
+        const allItems = [
+            { id: 'total_score', label: '총점', defaultVal: 60 },
+            ...eligibleItems.map(item => ({ id: item.id, label: item.label, defaultVal: 0 }))
+        ];
+
+        let html = '';
+        allItems.forEach(item => {
+            html += `
+                <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); margin-bottom: 4px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+                        <input type="checkbox" class="f-rule-custom-checkbox" data-item-id="${item.id}" style="cursor:pointer;"> 특정 ${item.label} 미만 F :
+                    </label>
+                    <input type="number" class="f-rule-custom-val-input" data-item-id="${item.id}" value="${item.defaultVal}" disabled style="width:60px; padding:4px; border-radius:4px; background:rgba(15,23,42,0.6); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; font-size: 12px;"> 점 미만
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        // Add event listeners
+        container.querySelectorAll('.f-rule-custom-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const itemId = this.dataset.itemId;
+                const valInput = container.querySelector(`.f-rule-custom-val-input[data-item-id="${itemId}"]`);
+                if (valInput) valInput.disabled = !this.checked;
+            });
+        });
     }
 
     function renderStep5A() {
@@ -2127,17 +2173,7 @@
             document.getElementById('grading-val-d')
         ];
 
-        const fMinscoreCheckbox = document.getElementById('f-rule-minscore');
-        const fMinscoreValInput = document.getElementById('f-rule-minscore-val');
-
-        if (fMinscoreCheckbox && fMinscoreValInput) {
-            // Remove previous listeners if any to avoid duplication
-            const newCheckbox = fMinscoreCheckbox.cloneNode(true);
-            fMinscoreCheckbox.parentNode.replaceChild(newCheckbox, fMinscoreCheckbox);
-            newCheckbox.addEventListener('change', function() {
-                fMinscoreValInput.disabled = !this.checked;
-            });
-        }
+        // minscore listeners removed as they are handled dynamically
 
         function updateLabels() {
             const distType = distTypeSelect.value;
@@ -2243,11 +2279,25 @@
             }
         }
 
-        const fAttendance = document.getElementById('f-rule-attendance').checked;
         const fMidterm = document.getElementById('f-rule-midterm').checked;
         const fFinal = document.getElementById('f-rule-final').checked;
-        const fMinscore = document.getElementById('f-rule-minscore').checked;
-        const fMinscoreVal = parseFloat(document.getElementById('f-rule-minscore-val').value) || 60;
+
+        const customFRules = [];
+        const customContainer = document.getElementById('f-rule-custom-items-container');
+        if (customContainer) {
+            customContainer.querySelectorAll('.f-rule-custom-checkbox').forEach(cb => {
+                if (cb.checked) {
+                    const itemId = cb.dataset.itemId;
+                    const valInput = customContainer.querySelector(`.f-rule-custom-val-input[data-item-id="${itemId}"]`);
+                    if (valInput) {
+                        customFRules.push({
+                            itemId: itemId,
+                            threshold: parseFloat(valInput.value) || 0
+                        });
+                    }
+                }
+            });
+        }
 
         const tieBreakerSelects = document.querySelectorAll('.tie-breaker-select');
         const tieBreakers = Array.from(tieBreakerSelects).map(select => ({
@@ -2291,9 +2341,18 @@
                 }
             }
             if (!st.is_f) {
-                if (fMinscore && st.total_score < fMinscoreVal) {
-                    st.is_f = true;
-                    st.f_reason = '성적미달';
+                for (const rule of customFRules) {
+                    const scoreVal = rule.itemId === 'total_score' ? st.total_score : (st[`${rule.itemId}_score`] || 0);
+                    if (scoreVal < rule.threshold) {
+                        st.is_f = true;
+                        if (rule.itemId === 'total_score') {
+                            st.f_reason = '성적미달';
+                        } else {
+                            const matchedItem = activeEvalItems.find(e => e.id === rule.itemId);
+                            st.f_reason = `${matchedItem ? matchedItem.label : rule.itemId}미달`;
+                        }
+                        break;
+                    }
                 }
             }
         });
