@@ -1936,7 +1936,7 @@
             } else {
                 dataObj.course.published = false;
             }
-            return dataObj;
+            return getPublicDataPayload(dataObj);
         } catch (e) {
             console.error('Failed to compile data.json object:', e);
             return null;
@@ -1981,6 +1981,45 @@
         }
     }
 
+    function getProfessorStudentId(st) {
+        if (!st) return '';
+        return st.student_id || st.studentId || st.student_id_raw || st.student_id_full || st.student_id_masked || '';
+    }
+
+    function getProfessorStudentName(st) {
+        if (!st) return '';
+        return st.student_name || st.name || st.name_raw || st.name_full || st.name_masked || '';
+    }
+
+    function stripProfessorOnlyStudentFields(student) {
+        const safe = { ...(student || {}) };
+        [
+            'student_id',
+            'studentId',
+            'student_id_raw',
+            'student_id_full',
+            'student_name',
+            'name',
+            'name_raw',
+            'name_full',
+            'phone',
+            'phone_number',
+            'phone_full',
+            '_cRow'
+        ].forEach(field => delete safe[field]);
+        return safe;
+    }
+
+    function getPublicDataPayload(dataObj) {
+        const payload = JSON.parse(JSON.stringify(dataObj || {}));
+        if (payload.students) {
+            Object.keys(payload.students).forEach(key => {
+                payload.students[key] = stripProfessorOnlyStudentFields(payload.students[key]);
+            });
+        }
+        return payload;
+    }
+
     function downloadFinalGradesExcel() {
         const parsed = getStoredCourseData(true);
         if (!parsed) return;
@@ -2002,14 +2041,14 @@
                 parseFloat(String(b.rank || '').replace(/[^0-9.]/g, '')) || Number.MAX_SAFE_INTEGER
             );
             if (rankDiff !== 0) return rankDiff;
-            return compareStudentValues(a.student_id_masked || a.key, b.student_id_masked || b.key);
+            return compareStudentValues(getProfessorStudentId(a) || a.key, getProfessorStudentId(b) || b.key);
         });
 
         const evalHeaders = evaluation.map(item => item.ratio !== undefined && item.ratio !== null
             ? `${item.label}(${item.ratio}%)`
             : item.label);
         const headers = [
-            '분반', '소속', '학번(마스킹)', '성명(마스킹)',
+            '분반', '소속', '학번', '성명',
             ...evalHeaders,
             '가산점', '가산점 메모', '특별점수', '특별점수 메모',
             '최종 총점', '석차', '최종 학점',
@@ -2025,8 +2064,8 @@
             aoa.push([
                 st.class_num || '',
                 st.department || '',
-                st.student_id_masked || '',
-                st.name_masked || '',
+                getProfessorStudentId(st),
+                getProfessorStudentName(st),
                 ...evalScores,
                 st.extra_score || '',
                 st.extra_memo || '',
@@ -2427,9 +2466,9 @@
         }
         switch (sortKey) {
             case 'student_id':
-                return st._studentKey || st.student_id_masked || '';
+                return getProfessorStudentId(st) || st._studentKey || '';
             case 'name':
-                return st.name_masked || '';
+                return getProfessorStudentName(st);
             case 'class_num':
                 return st.class_num || 0;
             case 'extra_score':
@@ -2659,6 +2698,8 @@
 
         let trs = '';
         studentList.forEach(st => {
+            const displayStudentId = escapeHtml(getProfessorStudentId(st));
+            const displayStudentName = escapeHtml(getProfessorStudentName(st));
             let itemTds = '';
             activeEvalItems.forEach(item => {
                 const val = st[`${item.id}_score`];
@@ -2667,8 +2708,8 @@
 
             trs += `
                 <tr style="border-bottom:1px solid var(--border-glass);">
-                    <td style="padding:10px; text-align:center; color:white;">${st.student_id_masked}</td>
-                    <td style="padding:10px; text-align:center;">${st.name_masked}</td>
+                    <td style="padding:10px; text-align:center; color:white;">${displayStudentId}</td>
+                    <td style="padding:10px; text-align:center;">${displayStudentName}</td>
                     <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     ${itemTds}
                     <td style="padding:10px; text-align:center; color:#34d399;">${st.extra_score || 0}</td>
@@ -3200,6 +3241,8 @@
 
         let trs = '';
         studentList.forEach(st => {
+            const displayStudentId = escapeHtml(getProfessorStudentId(st));
+            const displayStudentName = escapeHtml(getProfessorStudentName(st));
             const isAttendanceF = st.absences >= 4;
             const grades = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F'];
             let gradeOptions = '';
@@ -3220,9 +3263,9 @@
             const cursorStyle = isAttendanceF ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;';
 
             trs += `
-                <tr style="border-bottom:1px solid var(--border-glass);" data-student-key="${st._studentKey}" data-student-id="${st.student_id_masked}" data-name="${st.name_masked}">
-                    <td style="padding:10px; text-align:center; color:white;">${st.student_id_masked}</td>
-                    <td style="padding:10px; text-align:center;">${st.name_masked}</td>
+                <tr style="border-bottom:1px solid var(--border-glass);" data-student-key="${st._studentKey}" data-student-id="${displayStudentId}" data-name="${displayStudentName}">
+                    <td style="padding:10px; text-align:center; color:white;">${displayStudentId}</td>
+                    <td style="padding:10px; text-align:center;">${displayStudentName}</td>
                     <td style="padding:10px; text-align:center;">${st.class_num}반</td>
                     <td style="padding:10px; text-align:center;">
                         <input type="number" class="override-score-input" value="${st.total_score}" step="0.1" ${disabledAttr} style="width:70px; padding:6px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); text-align:center; outline:none; ${isAttendanceF ? 'opacity:0.6;' : ''}">
@@ -4233,7 +4276,8 @@
         for (const row of rows) {
             const studentId = String(row[mapping.studentId] || '').trim();
             const name = String(row[mapping.name] || '').trim();
-            const phone = mapping.phone ? String(row[mapping.phone] || '').replace(/[^0-9]/g, '') : '';
+            const rawPhone = mapping.phone ? String(row[mapping.phone] || '').trim() : '';
+            const phone = rawPhone.replace(/[^0-9]/g, '');
             const phoneLast4 = phone.slice(-4);
             const dept = mapping.dept ? String(row[mapping.dept] || '').trim() : '';
             const classNum = mapping.classNum ? (parseInt(row[mapping.classNum]) || 1) : 1;
@@ -4332,6 +4376,9 @@
             const entry = {
                 department: dept,
                 class_num: classNum,
+                student_id: studentId,
+                student_name: name,
+                phone: rawPhone,
                 student_id_masked: idMasked,
                 name_masked: nameMasked,
                 ...scores,
