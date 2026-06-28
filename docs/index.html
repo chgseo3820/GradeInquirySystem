@@ -1040,7 +1040,15 @@
 
                             <!-- 의도 대비 실제 통계 대조 그리드 -->
                             <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px;">
-                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px; text-align: left;">📊 의도한 비율/인원 vs 실제 산출 대조</div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <div style="font-weight:600; font-size:13px; color:var(--text-main); text-align: left;">📊 의도한 비율/인원 vs 실제 산출 대조</div>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <label for="grading-stats-class-select" style="font-size:11px; color:var(--text-secondary); margin:0;">분반 필터:</label>
+                                        <select id="grading-stats-class-select" style="padding:4px 8px; border-radius:4px; background:rgba(15,23,42,0.8); color:white; border:1px solid var(--border-glass); outline:none; font-size:11px;">
+                                            <option value="all">전체 분반</option>
+                                        </select>
+                                    </div>
+                                </div>
                                 <div class="preview-table-wrap" style="border: 1px solid var(--border-glass); border-radius: 6px; overflow: hidden;">
                                     <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
                                         <thead>

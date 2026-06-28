@@ -2472,8 +2472,15 @@
             }
         });
 
-        const normalStudents = studentList.filter(st => !st.is_f && !st.is_relative_excluded);
-        const fStudents = studentList.filter(st => st.is_f);
+        // Group by class_num
+        const classes = {};
+        studentList.forEach(st => {
+            const cNum = st.class_num || 1;
+            if (!classes[cNum]) {
+                classes[cNum] = [];
+            }
+            classes[cNum].push(st);
+        });
 
         const sortStudents = (a, b) => {
             const diff = b.total_score - a.total_score;
@@ -2488,47 +2495,64 @@
             return 0;
         };
 
-        normalStudents.sort(sortStudents);
+        const classTargetStats = {};
 
-        let currentRank = 1;
-        for (let i = 0; i < normalStudents.length; i++) {
-            if (i > 0 && sortStudents(normalStudents[i], normalStudents[i - 1]) === 0) {
-                normalStudents[i].rank = normalStudents[i - 1].rank;
-            } else {
-                normalStudents[i].rank = String(i + 1);
+        // Run grading pipeline per class section
+        for (const [cNum, classSts] of Object.entries(classes)) {
+            const normalStudents = classSts.filter(st => !st.is_f && !st.is_relative_excluded);
+            const fStudents = classSts.filter(st => st.is_f);
+
+            normalStudents.sort(sortStudents);
+
+            // Calculate ranks within this section
+            for (let i = 0; i < normalStudents.length; i++) {
+                if (i > 0 && sortStudents(normalStudents[i], normalStudents[i - 1]) === 0) {
+                    normalStudents[i].rank = normalStudents[i - 1].rank;
+                } else {
+                    normalStudents[i].rank = String(i + 1);
+                }
             }
+
+            const N = normalStudents.length;
+            let countA = 0, countB = 0, countC = 0, countD = 0;
+
+            if (distType === 'ratio') {
+                countA = Math.round(N * (valA / 100));
+                countB = Math.round(N * (valB / 100));
+                countC = Math.round(N * (valC / 100));
+                countD = Math.max(0, N - (countA + countB + countC));
+            } else {
+                countA = Math.min(N, valA);
+                countB = Math.min(Math.max(0, N - countA), valB);
+                countC = Math.min(Math.max(0, N - (countA + countB)), valC);
+                countD = Math.max(0, N - (countA + countB + countC));
+            }
+
+            const aStudents = normalStudents.slice(0, countA);
+            const bStudents = normalStudents.slice(countA, countA + countB);
+            const cStudents = normalStudents.slice(countA + countB, countA + countB + countC);
+            const dStudents = normalStudents.slice(countA + countB + countC);
+
+            const countPlusA = Math.round(aStudents.length * (plusRatioA / 100));
+            const countPlusB = Math.round(bStudents.length * (plusRatioB / 100));
+            const countPlusC = Math.round(cStudents.length * (plusRatioC / 100));
+            const countPlusD = Math.round(dStudents.length * (plusRatioD / 100));
+
+            aStudents.forEach((st, idx) => st.grade = idx < countPlusA ? 'A+' : 'A0');
+            bStudents.forEach((st, idx) => st.grade = idx < countPlusB ? 'B+' : 'B0');
+            cStudents.forEach((st, idx) => st.grade = idx < countPlusC ? 'C+' : 'C0');
+            dStudents.forEach((st, idx) => st.grade = idx < countPlusD ? 'D+' : 'D0');
+
+            classTargetStats[cNum] = {
+                A: { targetCount: countA, targetRatio: valA },
+                B: { targetCount: countB, targetRatio: valB },
+                C: { targetCount: countC, targetRatio: valC },
+                D: { targetCount: countD, targetRatio: valD },
+                F: { targetCount: fStudents.length, targetRatio: 0 }
+            };
         }
 
-        const N = normalStudents.length;
-        let countA = 0, countB = 0, countC = 0, countD = 0;
-
-        if (distType === 'ratio') {
-            countA = Math.round(N * (valA / 100));
-            countB = Math.round(N * (valB / 100));
-            countC = Math.round(N * (valC / 100));
-            countD = Math.max(0, N - (countA + countB + countC));
-        } else {
-            countA = Math.min(N, valA);
-            countB = Math.min(Math.max(0, N - countA), valB);
-            countC = Math.min(Math.max(0, N - (countA + countB)), valC);
-            countD = Math.max(0, N - (countA + countB + countC));
-        }
-
-        const aStudents = normalStudents.slice(0, countA);
-        const bStudents = normalStudents.slice(countA, countA + countB);
-        const cStudents = normalStudents.slice(countA + countB, countA + countB + countC);
-        const dStudents = normalStudents.slice(countA + countB + countC);
-
-        const countPlusA = Math.round(aStudents.length * (plusRatioA / 100));
-        const countPlusB = Math.round(bStudents.length * (plusRatioB / 100));
-        const countPlusC = Math.round(cStudents.length * (plusRatioC / 100));
-        const countPlusD = Math.round(dStudents.length * (plusRatioD / 100));
-
-        aStudents.forEach((st, idx) => st.grade = idx < countPlusA ? 'A+' : 'A0');
-        bStudents.forEach((st, idx) => st.grade = idx < countPlusB ? 'B+' : 'B0');
-        cStudents.forEach((st, idx) => st.grade = idx < countPlusC ? 'C+' : 'C0');
-        dStudents.forEach((st, idx) => st.grade = idx < countPlusD ? 'D+' : 'D0');
-
+        // Set grade for F and Excluded globally
         studentList.forEach(st => {
             if (st.is_f) {
                 st.grade = 'F';
@@ -2546,14 +2570,7 @@
             }
         });
 
-        const targetStats = {
-            A: { targetCount: countA, targetRatio: valA },
-            B: { targetCount: countB, targetRatio: valB },
-            C: { targetCount: countC, targetRatio: valC },
-            D: { targetCount: countD, targetRatio: valD },
-            F: { targetCount: fStudents.length, targetRatio: 0 }
-        };
-        pendingUploadData.targetStats = targetStats;
+        pendingUploadData.classTargetStats = classTargetStats;
         pendingUploadData.distType = distType;
 
         showGradingSubPanel('c');
@@ -2561,13 +2578,21 @@
 
     function updateGradingStats() {
         if (!pendingUploadData) return;
-        const studentList = Object.values(pendingUploadData.students);
-        const totalN = studentList.length;
+        const selectEl = document.getElementById('grading-stats-class-select');
+        const selectedClass = selectEl ? selectEl.value : 'all';
 
-        const normalCount = studentList.filter(st => !st.is_f && !st.is_relative_excluded).length;
+        const studentList = Object.values(pendingUploadData.students);
+        
+        let filteredStudents = studentList;
+        if (selectedClass !== 'all') {
+            filteredStudents = studentList.filter(st => String(st.class_num || 1) === selectedClass);
+        }
+
+        const totalN = filteredStudents.length;
+        const normalCount = filteredStudents.filter(st => !st.is_f && !st.is_relative_excluded).length;
 
         const counts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
-        studentList.forEach(st => {
+        filteredStudents.forEach(st => {
             const main = st.grade ? st.grade[0] : 'F';
             if (counts[main] !== undefined) {
                 counts[main]++;
@@ -2578,8 +2603,29 @@
         if (!tbody) return;
 
         tbody.innerHTML = '';
-        const targetStats = pendingUploadData.targetStats || {};
+        const classTargetStats = pendingUploadData.classTargetStats || {};
         const distType = pendingUploadData.distType || 'ratio';
+
+        // Calculate target stats for this view
+        const targetStats = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+        if (selectedClass === 'all') {
+            Object.values(classTargetStats).forEach(cStats => {
+                ['A', 'B', 'C', 'D', 'F'].forEach(grade => {
+                    targetStats[grade] += cStats[grade] ? cStats[grade].targetCount : 0;
+                });
+            });
+        } else {
+            const cStats = classTargetStats[selectedClass] || {};
+            ['A', 'B', 'C', 'D', 'F'].forEach(grade => {
+                targetStats[grade] = cStats[grade] ? cStats[grade].targetCount : 0;
+            });
+        }
+
+        const distValA = parseFloat(document.getElementById('grading-val-a').value) || 0;
+        const distValB = parseFloat(document.getElementById('grading-val-b').value) || 0;
+        const distValC = parseFloat(document.getElementById('grading-val-c').value) || 0;
+        const distValD = parseFloat(document.getElementById('grading-val-d').value) || 0;
+        const distRatios = { A: distValA, B: distValB, C: distValC, D: distValD, F: 0 };
 
         ['A', 'B', 'C', 'D', 'F'].forEach(grade => {
             const actual = counts[grade];
@@ -2587,22 +2633,21 @@
                 ? ((actual / normalCount) * 100).toFixed(1) + '%'
                 : grade === 'F' ? ((actual / totalN) * 100).toFixed(1) + '%' : '0.0%';
 
-            const target = targetStats[grade] || { targetCount: 0, targetRatio: 0 };
+            const targetCount = targetStats[grade];
             
             let targetText = '';
             if (grade === 'F') {
                 targetText = '-';
             } else {
                 targetText = distType === 'ratio'
-                    ? `${target.targetRatio}% (${target.targetCount}명)`
-                    : `${target.targetCount}명`;
+                    ? `${distRatios[grade]}% (${targetCount}명)`
+                    : `${targetCount}명`;
             }
 
             let statusText = '🟢 일치';
             let statusColor = '#34d399';
             
             if (grade !== 'F') {
-                const targetCount = target.targetCount;
                 if (actual !== targetCount) {
                     statusText = `⚠️ 편차 (${actual - targetCount > 0 ? '+' : ''}${actual - targetCount}명)`;
                     statusColor = '#fbbf24';
@@ -2728,6 +2773,31 @@
                 updateGradingStats();
             });
         });
+
+        // 분반 필터 드롭다운 채우기 및 바인딩
+        const classSelect = document.getElementById('grading-stats-class-select');
+        if (classSelect) {
+            const classNums = Array.from(new Set(studentList.map(st => st.class_num).filter(Boolean))).sort((a, b) => a - b);
+            const prevValue = classSelect.value || 'all';
+            classSelect.innerHTML = '<option value="all">전체 분반</option>';
+            classNums.forEach(cNum => {
+                const opt = document.createElement('option');
+                opt.value = String(cNum);
+                opt.textContent = `${cNum}분반`;
+                classSelect.appendChild(opt);
+            });
+            if (classNums.map(String).includes(prevValue)) {
+                classSelect.value = prevValue;
+            } else {
+                classSelect.value = 'all';
+            }
+
+            const newClassSelect = classSelect.cloneNode(true);
+            classSelect.parentNode.replaceChild(newClassSelect, classSelect);
+            newClassSelect.addEventListener('change', () => {
+                updateGradingStats();
+            });
+        }
 
         updateGradingStats();
     }
