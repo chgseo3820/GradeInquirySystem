@@ -1160,6 +1160,8 @@ def get_view_stats():
         view_id = _student_view_id(course_id, sid)
         view_date = latest_by_student.get(view_id)
         student_rows.append({
+            "student_id": str(sid),
+            "name": student.get("name", ""),
             "student_id_masked": mask_student_id(sid),
             "name_masked": mask_name(student.get("name", "")),
             "department": student.get("department", ""),

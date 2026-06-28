@@ -4118,26 +4118,6 @@
     function renderPreviewTable(rows, headers) {
         if (!rows || rows.length === 0) return;
 
-        // 개인정보 마스킹 처리 (미리보기에서만)
-        const maskName = (name) => {
-            if (!name || name.length <= 1) return name || '';
-            return name[0] + '*'.repeat(name.length - 1);
-        };
-        const maskId = (id) => {
-            const s = String(id || '');
-            return s.length > 4 ? s.slice(0, 4) + '****' : s;
-        };
-        const maskPhone = (phone) => {
-            const s = String(phone || '');
-            if (s.length <= 4) return '****';
-            return s.slice(0, s.length - 4).replace(/./g, '*') + s.slice(-4);
-        };
-
-        // 마스킹 대상 컬럼 식별
-        const nameCol = headers.find(h => h.includes('이름') || h.includes('성명'));
-        const idCol = headers.find(h => h.includes('학번'));
-        const phoneCol = headers.find(h => h.includes('전화') || h.includes('핸드폰') || h.includes('연락처'));
-
         // 컬럼별 정렬 클래스 판단 함수
         const getAlignClass = (h) => {
             const centerKeywords = ['학년', '순번', '석차', '학점', '순위', '학년도', '학기'];
@@ -4151,7 +4131,7 @@
         const thHtml = headers.map(h => {
             const alignCls = getAlignClass(h);
             const clsAttr = alignCls ? ` class="${alignCls}"` : '';
-            return `<th${clsAttr}>${h}</th>`;
+            return `<th${clsAttr}>${escapeHtml(h)}</th>`;
         }).join('');
 
         // 행 (최대 200행)
@@ -4163,20 +4143,6 @@
                 let clsList = [];
                 if (alignCls) clsList.push(alignCls);
 
-                // 개인정보 마스킹
-                if (h === nameCol) {
-                    clsList.push('cell-masked');
-                    return `<td class="${clsList.join(' ')}">${maskName(v)}</td>`;
-                }
-                if (h === idCol) {
-                    clsList.push('cell-masked');
-                    return `<td class="${clsList.join(' ')}">${maskId(v)}</td>`;
-                }
-                if (h === phoneCol) {
-                    clsList.push('cell-masked');
-                    return `<td class="${clsList.join(' ')}">${maskPhone(v)}</td>`;
-                }
-
                 // 숫자
                 if (typeof v === 'number') {
                     const formatted = v % 1 === 0 ? v : v.toFixed(2);
@@ -4184,7 +4150,7 @@
                 }
                 
                 const clsAttr = clsList.length > 0 ? ` class="${clsList.join(' ')}"` : '';
-                return `<td${clsAttr}>${v ?? ''}</td>`;
+                return `<td${clsAttr}>${escapeHtml(v ?? '')}</td>`;
             }).join('');
             return `<tr>${tds}</tr>`;
         }).join('');
@@ -7033,8 +6999,8 @@
         const viewedCount = stats.viewed || 0;
         const percent = totalCount ? Number(stats.percent || ((viewedCount / totalCount) * 100)).toFixed(1) : '0.0';
         const studentsList = (stats.students || []).map(s => ({
-            name: s.name_masked || '이*름',
-            sid: s.student_id_masked || '학*번',
+            name: getProfessorStudentName(s) || '이름',
+            sid: getProfessorStudentId(s) || '학번',
             department: s.department || '-',
             classNum: s.class_num || '-',
             isViewed: !!s.is_viewed,
@@ -7158,8 +7124,8 @@
 
                 studentsList.push({
                     key: key,
-                    name: s.name_masked || '이*름',
-                    sid: s.student_id_masked || '학*번',
+                    name: getProfessorStudentName(s) || '이름',
+                    sid: getProfessorStudentId(s) || '학번',
                     department: s.department || '-',
                     classNum: s.class_num || '-',
                     isViewed: isViewed,
@@ -7247,7 +7213,7 @@
             return;
         }
 
-        const headers = ['번호', '학과', '분반', '이름(마스킹)', '학번(마스킹)', '열람여부', '열람일시', '집계기준'];
+        const headers = ['번호', '학과', '분반', '이름', '학번', '열람여부', '열람일시', '집계기준'];
         const aoa = [headers];
         filteredList.forEach((s, idx) => {
             aoa.push([
@@ -7291,8 +7257,8 @@
                 const stats = JSON.parse(cached);
                 if (stats && stats.success && Array.isArray(stats.students)) {
                     const serverRows = stats.students.map(s => ({
-                        name: s.name_masked || '이*름',
-                        sid: s.student_id_masked || '학*번',
+                        name: getProfessorStudentName(s) || '이름',
+                        sid: getProfessorStudentId(s) || '학번',
                         department: s.department || '-',
                         classNum: s.class_num || '-',
                         isViewed: !!s.is_viewed,
@@ -7355,8 +7321,8 @@
 
                 studentsList.push({
                     key: key,
-                    name: s.name_masked || '이*름',
-                    sid: s.student_id_masked || '학*번',
+                    name: getProfessorStudentName(s) || '이름',
+                    sid: getProfessorStudentId(s) || '학번',
                     department: s.department || '-',
                     classNum: s.class_num || '-',
                     isViewed: isViewed,

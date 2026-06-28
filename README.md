@@ -27,9 +27,9 @@ GitHub Pages로 배포: **https://chgseo3820.github.io/GradeInquirySystem/**
 ## 🔒 개인정보 보호
 
 - 인증 키: `SHA-256(학번|전화번호뒷4자리|접속비밀번호)` — 원본 역추적 완화
-- 전화번호, 이메일: JSON에 미포함
-- 이름: 마스킹 처리 (첫 글자만 표시)
-- 학번: 앞 4자리만 표시
+- 학생 공개/공시 JSON: 전화번호, 이메일, 교수자 표시용 원본 학번/성명 미포함
+- 학생 조회 화면: 이름은 첫 글자만, 학번은 앞 4자리만 표시
+- 교수자 모드: 업로드/검증/성적처리/열람현황 화면에서는 원본 학번과 성명을 표시
 - 성적/설정 파일: **AES-256-GCM + PBKDF2-HMAC-SHA256(600,000회)** 으로 암호화 저장
 - Excel 원본, `config.json`, `data.json`, 암호화된 민감 파일은 GitHub에 올리지 않음 (`.gitignore`)
 - Flask 로컬 서버 관리자 API는 `SCOREQUERY_ADMIN_TOKEN` 환경변수로 보호
