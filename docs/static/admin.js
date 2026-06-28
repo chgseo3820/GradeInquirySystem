@@ -26,6 +26,10 @@
         evaluation: [], // [{ id, label, icon, ratio }]
         courses: [],    // [{ year, semester, name, evaluation: [...] }]
     };
+    const gradingTableState = {
+        step5a: { sortKey: 'total_score', direction: 'desc', classFilter: 'all' },
+        step5c: { sortKey: 'total_score', direction: 'desc', classFilter: 'all' },
+    };
 
     function getCourseId(course) {
         if (!course) return '';
@@ -116,6 +120,8 @@
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             return window.location.origin;
         }
+        const configuredApiUrl = (localStorage.getItem('scorequery_api_url') || '').trim().replace(/\/+$/, '');
+        if (configuredApiUrl) return configuredApiUrl;
         return 'http://127.0.0.1:5000';
     }
 
@@ -166,6 +172,95 @@
             return { success: false, error: result.error || `HTTP ${response.status}` };
         }
         return result;
+    }
+
+    async function getLocalAdminJson(path) {
+        const token = sessionStorage.getItem(LOCAL_ADMIN_TOKEN_KEY);
+        if (!token) return null;
+        try {
+            const response = await fetch(`${getLocalBackendOrigin()}${path}`, {
+                method: 'GET',
+                headers: { 'X-Admin-Token': token }
+            });
+            if (response.status === 401) {
+                sessionStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
+                return null;
+            }
+            const result = await response.json().catch(() => ({}));
+            return response.ok ? result : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function hasConfiguredServerApi() {
+        const configuredApiUrl = (localStorage.getItem('scorequery_api_url') || '').trim();
+        return !!configuredApiUrl || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    }
+
+    function markServerAuthUser(user) {
+        if (!user) return null;
+        return { ...user, _authProvider: 'server' };
+    }
+
+    async function callServerJson(path, { method = 'GET', payload = null } = {}) {
+        if (!hasConfiguredServerApi()) {
+            throw new Error('성적 조회 API URL이 설정되지 않았습니다.');
+        }
+        const options = {
+            method,
+            credentials: 'include',
+            headers: {}
+        };
+        if (payload !== null) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(payload);
+        }
+        const response = await fetch(`${getLocalBackendOrigin()}${path}`, options);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const err = new Error(result.error || `HTTP ${response.status}`);
+            err.status = response.status;
+            throw err;
+        }
+        return result;
+    }
+
+    async function getServerSessionUser() {
+        if (!hasConfiguredServerApi()) return null;
+        try {
+            const result = await callServerJson('/api/auth/me');
+            return result && result.authenticated ? markServerAuthUser(result.user) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function routeAuthenticatedUser(user) {
+        if (!user || (!user.pw && user._authProvider !== 'server')) {
+            sessionStorage.removeItem('scorequery_session');
+            currentUser = null;
+            handleLogoutAction();
+            return;
+        }
+        currentUser = user;
+        if (user.isMaster === true || user.isMaster === 'true') {
+            showMasterDashboard();
+            return;
+        }
+        if (user.status === 'approved') {
+            document.getElementById('prof-name').value = user.name || '';
+            document.getElementById('prof-email').value = user.email || '';
+            document.getElementById('prof-phone').value = user.phone || '';
+            adminConfig.professor = { name: user.name || '', email: user.email || '', phone: user.phone || '' };
+            enterAdminWizard();
+            return;
+        }
+        if (user.status === 'pending') {
+            showPendingView(user);
+            return;
+        }
+        handleLogoutAction();
     }
 
     function storeCurrentSession(user) {
@@ -236,31 +331,25 @@
         }
     }
 
-    function enterAdminMode() {
+    async function enterAdminMode() {
         modeSection.style.display = 'none';
         adminSection.classList.add('visible');
         if (topBar) topBar.style.display = 'flex';
         topBarTitle.textContent = '⚙️ 교수 모드 — 과목 설정';
         topBarProf.textContent = '';
+
+        const serverUser = await getServerSessionUser();
+        if (serverUser) {
+            storeCurrentSession(serverUser);
+            routeAuthenticatedUser(serverUser);
+            return;
+        }
+
         // 세션 로드 체크 후 분기
         const sess = sessionStorage.getItem('scorequery_session');
         if (sess) {
             const user = JSON.parse(sess);
-            if (!user.pw) {
-                sessionStorage.removeItem('scorequery_session');
-                handleLogoutAction();
-                return;
-            }
-            currentUser = user;
-            if (user.isMaster) {
-                showMasterDashboard();
-            } else if (user.status === 'approved') {
-                enterAdminWizard();
-            } else if (user.status === 'pending') {
-                showPendingView(user);
-            } else {
-                handleLogoutAction();
-            }
+            routeAuthenticatedUser(user);
         } else {
             // 로그인 화면 노출
             document.getElementById('admin-auth-panel').style.display = '';
@@ -494,7 +583,7 @@
                             </div>
                             <div class="drawer-form-group">
                                 <label>새 비밀번호</label>
-                                <input type="password" id="drawer-pw-new" class="drawer-input" placeholder="대소문자/숫자/특수문자 포함 8자 이상">
+                                <input type="password" id="drawer-pw-new" class="drawer-input" placeholder="10자 이상, 문자/숫자/특수문자 중 3종 이상">
                             </div>
                             <div class="drawer-form-group">
                                 <label>새 비밀번호 확인</label>
@@ -730,22 +819,40 @@
                 return;
             }
 
-            const currentHashed = await sha256(currentVal);
-            if (currentUser.pw !== currentHashed) {
-                pwError.textContent = '❌ 현재 비밀번호가 일치하지 않습니다.';
-                pwError.style.display = 'block';
-                return;
-            }
-
-            const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
-            if (!pwRegex.test(newVal)) {
-                pwError.textContent = '❌ 새 비밀번호는 영문 대소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함하여 8자 이상으로 설정해 주세요.';
+            if (!_isStrongPassword(newVal)) {
+                pwError.textContent = '❌ 새 비밀번호는 10자 이상이며 영문 대/소문자, 숫자, 특수문자 중 3종 이상을 포함해야 합니다.';
                 pwError.style.display = 'block';
                 return;
             }
 
             if (newVal !== confirmVal) {
                 pwError.textContent = '❌ 새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다.';
+                pwError.style.display = 'block';
+                return;
+            }
+
+            if (currentUser._authProvider === 'server' || hasConfiguredServerApi()) {
+                try {
+                    await callServerJson('/api/auth/change_password', {
+                        method: 'POST',
+                        payload: { old_password: currentVal, new_password: newVal }
+                    });
+                    alert('🔑 비밀번호가 성공적으로 변경되었습니다.');
+                    closeDrawer();
+                    return;
+                } catch (err) {
+                    if (currentUser._authProvider === 'server') {
+                        pwError.textContent = '❌ 서버 비밀번호 변경에 실패했습니다: ' + (err.message || '네트워크 오류');
+                        pwError.style.display = 'block';
+                        return;
+                    }
+                    console.warn('[ScoreQuery] Server password change failed, using GAS/local fallback if available.', err);
+                }
+            }
+
+            const currentHashed = await sha256(currentVal);
+            if (currentUser.pw && currentUser.pw !== currentHashed) {
+                pwError.textContent = '❌ 현재 비밀번호가 일치하지 않습니다.';
                 pwError.style.display = 'block';
                 return;
             }
@@ -757,7 +864,7 @@
                     showMailLoading(true);
                     await callGasApi('change_pw', { newPwHash: newHashed }, {
                         email: currentUser.email,
-                        pwHash: currentUser.pw
+                        pwHash: currentUser.pw || currentHashed
                     });
                     showMailLoading(false);
                 } catch (err) {
@@ -873,7 +980,7 @@
                 if (!checkPw) return;
 
                 const checkHashed = await sha256(checkPw);
-                if (currentUser.pw !== checkHashed) {
+                if (currentUser.pw && currentUser.pw !== checkHashed) {
                     alert('❌ 비밀번호가 일치하지 않습니다. 탈퇴 처리가 취소되었습니다.');
                     return;
                 }
@@ -883,13 +990,29 @@
                 }
 
                 try {
-                    const gasUrl = localStorage.getItem('scorequery_gas_url');
-                    if (gasUrl) {
+                    let withdrawalHandled = false;
+                    if (currentUser._authProvider === 'server' || hasConfiguredServerApi()) {
+                        try {
+                            await callServerJson('/api/auth/withdraw', {
+                                method: 'POST',
+                                payload: { current_password: checkPw }
+                            });
+                            withdrawalHandled = true;
+                        } catch (err) {
+                            if (currentUser._authProvider === 'server') {
+                                throw err;
+                            }
+                            console.warn('[ScoreQuery] Server withdrawal failed, using GAS/local fallback if available.', err);
+                        }
+                    }
+                    if (!withdrawalHandled && localStorage.getItem('scorequery_gas_url')) {
                         await callGasApi('withdraw_request', null, {
                             email: currentUser.email,
-                            pwHash: currentUser.pw
+                            pwHash: currentUser.pw || checkHashed
                         });
-                    } else {
+                        withdrawalHandled = true;
+                    }
+                    if (!withdrawalHandled) {
                         const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
                         const idx = users.findIndex(u => u.email === currentUser.email);
                         if (idx >= 0) {
@@ -4371,11 +4494,29 @@
     }
 
     async function syncUsersFromGas() {
+        // 마스터만 목록을 동기화할 수 있음
+        if (!currentUser || !currentUser.isMaster) return;
+
+        if (hasConfiguredServerApi()) {
+            try {
+                const result = await callServerJson('/api/auth/users');
+                if (result && Array.isArray(result.users)) {
+                    localStorage.setItem('scorequery_users', JSON.stringify(result.users.map(u => markServerAuthUser(u))));
+                    console.log('[ScoreQuery] Successfully synchronized user database from server auth API.');
+                    return;
+                }
+            } catch (e) {
+                if (currentUser._authProvider === 'server') {
+                    console.error('[ScoreQuery] Failed to sync users from server:', e);
+                    alert('⚠️ 서버 회원 목록 동기화 실패: ' + (e.message || '네트워크 오류'));
+                    return;
+                }
+                console.warn('[ScoreQuery] Server user sync failed, using GAS fallback if available.', e);
+            }
+        }
+
         const gasUrl = localStorage.getItem('scorequery_gas_url');
         if (!gasUrl) return;
-
-        // 마스터만 목록을 동기화할 수 있으며, 마스터 본인의 이메일/비밀번호 해시가 필요함
-        if (!currentUser || !currentUser.isMaster) return;
 
         try {
             const users = await callGasApi('get_users', null, {
@@ -4510,25 +4651,18 @@
         if (infoMgmtBtn) infoMgmtBtn.addEventListener('click', () => showProfessorInfoMgmtDrawer('info'));
 
         try {
+            const serverUser = await getServerSessionUser();
+            if (serverUser) {
+                storeCurrentSession(serverUser);
+                routeAuthenticatedUser(serverUser);
+                bindManualDrawerEvents();
+                return;
+            }
+
             const sess = sessionStorage.getItem('scorequery_session');
             if (sess) {
                 const user = JSON.parse(sess);
-                if (!user.pw) {
-                    sessionStorage.removeItem('scorequery_session');
-                    return;
-                }
-                currentUser = user;
-                if (user.isMaster) {
-                    showMasterDashboard();
-                } else if (user.status === 'approved') {
-                    document.getElementById('prof-name').value = user.name;
-                    document.getElementById('prof-email').value = user.email;
-                    document.getElementById('prof-phone').value = user.phone;
-                    adminConfig.professor = { name: user.name, email: user.email, phone: user.phone };
-                    enterAdminWizard();
-                } else if (user.status === 'pending') {
-                    showPendingView(user);
-                }
+                routeAuthenticatedUser(user);
             }
         } catch (e) {
             console.error('Session load error:', e);
@@ -4620,12 +4754,32 @@
         const errorEl = document.getElementById('admin-login-error');
         errorEl.style.display = 'none';
 
-        const pwHashed = await sha256(pw);
         let user = null;
         let loginError = null;
 
+        if (hasConfiguredServerApi()) {
+            try {
+                const result = await callServerJson('/api/auth/login', {
+                    method: 'POST',
+                    payload: { email, password: pw }
+                });
+                if (result && result.user) {
+                    user = markServerAuthUser(result.user);
+                }
+            } catch (err) {
+                console.warn('[ScoreQuery] Server login check failed, using GAS/local fallback if available.', err);
+                loginError = err.message || '이메일 또는 비밀번호가 올바르지 않습니다.';
+                if ([401, 403, 409].includes(err.status)) {
+                    errorEl.textContent = '❌ ' + loginError;
+                    errorEl.style.display = 'block';
+                    return;
+                }
+            }
+        }
+
+        const pwHashed = user ? null : await sha256(pw);
         const gasUrl = localStorage.getItem('scorequery_gas_url');
-        if (gasUrl) {
+        if (!user && gasUrl) {
             try {
                 // GAS 데이터베이스에서 검증 및 최신 정보 동기화
                 const gasUser = await callGasApi('login', { email, pwHash: pwHashed });
@@ -4660,7 +4814,7 @@
             }
         }
 
-        // GAS를 통한 검증이 실패했거나 오프라인일 때 로컬 스토리지 대조로 폴백
+        // 서버/GAS 검증이 실패했거나 오프라인일 때 로컬 스토리지 대조로 폴백
         if (!user) {
             const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
             user = users.find(u => u.email === email && u.pw === pwHashed);
@@ -4669,13 +4823,6 @@
                 errorEl.style.display = 'block';
                 return;
             }
-        }
-
-        if (user.isMaster) {
-            currentUser = user;
-            storeCurrentSession(user);
-            showMasterDashboard();
-            return;
         }
 
         if (user.status === 'pending') {
@@ -4698,13 +4845,7 @@
 
         currentUser = user;
         storeCurrentSession(user);
-
-        document.getElementById('prof-name').value = user.name;
-        document.getElementById('prof-email').value = user.email;
-        document.getElementById('prof-phone').value = user.phone;
-        adminConfig.professor = { name: user.name, email: user.email, phone: user.phone };
-
-        enterAdminWizard();
+        routeAuthenticatedUser(user);
     }
 
     // ──────────────────────────────────────────────
@@ -4763,12 +4904,12 @@
 
     // 비밀번호 강도 검증 (회원가입과 동일 정책)
     function _isStrongPassword(pw) {
-        if (!pw || pw.length < 8) return false;
+        if (!pw || pw.length < 10) return false;
         const hasLower   = /[a-z]/.test(pw);
         const hasUpper   = /[A-Z]/.test(pw);
         const hasDigit   = /[0-9]/.test(pw);
         const hasSpecial = /[^A-Za-z0-9]/.test(pw);
-        return hasLower && hasUpper && hasDigit && hasSpecial;
+        return [hasLower, hasUpper, hasDigit, hasSpecial].filter(Boolean).length >= 3;
     }
 
     async function _handleForgotPwStep1(e) {
@@ -4854,7 +4995,7 @@
             return;
         }
         if (!_isStrongPassword(newPw)) {
-            errEl.textContent = '❌ 새 비밀번호는 영문 대/소문자, 숫자, 특수문자를 포함해 8자 이상이어야 합니다.';
+            errEl.textContent = '❌ 새 비밀번호는 10자 이상이며 영문 대/소문자, 숫자, 특수문자 중 3종 이상을 포함해야 합니다.';
             errEl.style.display = 'block';
             return;
         }
@@ -4975,10 +5116,9 @@
         const errorEl = document.getElementById('admin-register-error');
         errorEl.style.display = 'none';
 
-        // 비밀번호 강도 조건 체크: 대소문자, 숫자, 특수문자를 각각 최소 1개 포함하여 8자 이상
-        const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
-        if (!pwRegex.test(pw)) {
-            errorEl.textContent = '❌ 비밀번호는 영문 대소문자, 숫자, 특수문자를 각각 최소 1개 이상 필수 포함하여 8자 이상으로 설정해 주세요.';
+        // 비밀번호 강도 조건 체크: 10자 이상, 4종 중 3종 이상
+        if (!_isStrongPassword(pw)) {
+            errorEl.textContent = '❌ 비밀번호는 10자 이상이며 영문 대/소문자, 숫자, 특수문자 중 3종 이상을 포함해야 합니다.';
             errorEl.style.display = 'block';
             return;
         }
@@ -4990,10 +5130,11 @@
             return;
         }
 
+        const serverApiAvailable = hasConfiguredServerApi();
         const gasUrl = localStorage.getItem('scorequery_gas_url');
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (!gasUrl && !isLocalhost) {
-            errorEl.textContent = '❌ 원격 승인 데이터베이스 설정(GAS URL)이 완료되지 않았습니다. 마스터 교수님께 문의하여 설정(public-config.json 배포)을 완료해 주십시오.';
+        if (!serverApiAvailable && !gasUrl && !isLocalhost) {
+            errorEl.textContent = '❌ 원격 승인 데이터베이스 설정(API 또는 GAS URL)이 완료되지 않았습니다. 마스터 교수님께 문의하여 설정(public-config.json 배포)을 완료해 주십시오.';
             errorEl.style.display = 'block';
             return;
         }
@@ -5011,6 +5152,33 @@
             regDate: now,
             approveDate: isLocalBootstrap ? now : ''
         };
+
+        if (serverApiAvailable) {
+            try {
+                const result = await callServerJson('/api/auth/register', {
+                    method: 'POST',
+                    payload: { name, univ, dept, email, password: pw, phone }
+                });
+                const serverUser = markServerAuthUser(result.user || newUser);
+                const existingUserIdx = users.findIndex(u => u.email === email);
+                if (existingUserIdx >= 0) {
+                    users[existingUserIdx] = serverUser;
+                } else {
+                    users.push(serverUser);
+                }
+                localStorage.setItem('scorequery_users', JSON.stringify(users));
+                currentUser = serverUser;
+                showPendingView(serverUser);
+                return;
+            } catch (err) {
+                if (!gasUrl && !isLocalBootstrap) {
+                    errorEl.textContent = '❌ 서버 가입 신청에 실패했습니다: ' + (err.message || '네트워크 오류');
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                console.warn('[ScoreQuery] Server register failed, using GAS/local fallback if available.', err);
+            }
+        }
 
         if (gasUrl) {
             try {
@@ -5347,29 +5515,51 @@
         });
     }
 
+    async function updateAuthStatusRemote(email, status, gasAction) {
+        if (hasConfiguredServerApi()) {
+            try {
+                const result = await callServerJson('/api/auth/set_status', {
+                    method: 'POST',
+                    payload: { email, status }
+                });
+                return { source: 'server', user: markServerAuthUser(result.user) };
+            } catch (err) {
+                if (currentUser && currentUser._authProvider === 'server') {
+                    throw err;
+                }
+                console.warn('[ScoreQuery] Server status update failed, using GAS/local fallback if available.', err);
+            }
+        }
+
+        const gasUrl = localStorage.getItem('scorequery_gas_url');
+        if (gasUrl && gasAction) {
+            await callGasApi(gasAction, { email }, {
+                email: currentUser.email,
+                pwHash: currentUser.pw
+            });
+            return { source: 'gas' };
+        }
+        return { source: 'local' };
+    }
+
     async function handleApprove(email) {
         const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
         const idx = users.findIndex(u => u.email === email);
         if (idx < 0) return;
 
         const targetUser = users[idx];
-        const gasUrl = localStorage.getItem('scorequery_gas_url');
-        
-        if (gasUrl) {
-            try {
-                showMailLoading(true);
-                await callGasApi('approve', { email: email }, {
-                    email: currentUser.email,
-                    pwHash: currentUser.pw
-                });
-                showMailLoading(false);
-                alert(`✅ ${targetUser.name} 교수님의 회원가입이 승인되었습니다.`);
-            } catch (err) {
-                showMailLoading(false);
-                alert('⚠️ 원격 승인 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
-                return;
-            }
-        } else {
+        let remoteResult = { source: 'local' };
+        try {
+            showMailLoading(true);
+            remoteResult = await updateAuthStatusRemote(email, 'approved', 'approve');
+            showMailLoading(false);
+        } catch (err) {
+            showMailLoading(false);
+            alert('⚠️ 원격 승인 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
+            return;
+        }
+
+        if (remoteResult.source === 'local') {
             // 로컬 오프라인 모드에서는 메일 클라이언트/모달 발송 연동
             const to = targetUser.email;
             const subjectText = '[ScoreQuery] 교수 회원가입 승인 완료 안내';
@@ -5384,9 +5574,10 @@
             sendMail(to, subjectText, bodyText);
         }
 
-        users[idx].status = 'approved';
+        users[idx] = remoteResult.user || { ...users[idx], status: 'approved', approveDate: new Date().toISOString() };
         localStorage.setItem('scorequery_users', JSON.stringify(users));
         renderMasterPendingList();
+        alert(`✅ ${targetUser.name} 교수님의 회원가입이 승인되었습니다.`);
     }
 
     async function handleResetPassword(email) {
@@ -5400,27 +5591,46 @@
         // 임시 비밀번호 생성: 이메일 ID + 랜덤 숫자 6자리
         const emailId = email.split('@')[0];
         const randNum = Math.floor(100000 + Math.random() * 900000);
-        const tempPw = emailId + randNum;
+        const tempPw = `Sq!${emailId}${randNum}`;
 
         // 비밀번호 해시화 저장
         const pwHashed = await sha256(tempPw);
-        
-        const gasUrl = localStorage.getItem('scorequery_gas_url');
-        if (gasUrl) {
-            try {
-                showMailLoading(true);
+
+        let resetHandled = false;
+        let resetSource = 'local';
+        try {
+            showMailLoading(true);
+            if (hasConfiguredServerApi()) {
+                try {
+                    await callServerJson('/api/auth/reset_password', {
+                        method: 'POST',
+                        payload: { email, password: tempPw }
+                    });
+                    resetHandled = true;
+                    resetSource = 'server';
+                } catch (err) {
+                    if (currentUser && currentUser._authProvider === 'server') {
+                        throw err;
+                    }
+                    console.warn('[ScoreQuery] Server password reset failed, using GAS/local fallback if available.', err);
+                }
+            }
+            if (!resetHandled && localStorage.getItem('scorequery_gas_url')) {
                 await callGasApi('reset_pw', { email: email, tempPw: pwHashed }, {
                     email: currentUser.email,
                     pwHash: currentUser.pw
                 });
-                showMailLoading(false);
-                alert(`✅ ${targetUser.name} 교수님의 비밀번호가 임시 비밀번호로 초기화되었습니다.\n\n임시 비밀번호: ${tempPw}\n\n(이 정보는 가입자에게 별도로 전달해 주세요.)`);
-            } catch (err) {
-                showMailLoading(false);
-                alert('⚠️ 원격 비밀번호 초기화에 실패했습니다: ' + (err.message || '네트워크 오류'));
-                return;
+                resetHandled = true;
+                resetSource = 'gas';
             }
-        } else {
+            showMailLoading(false);
+        } catch (err) {
+            showMailLoading(false);
+            alert('⚠️ 원격 비밀번호 초기화에 실패했습니다: ' + (err.message || '네트워크 오류'));
+            return;
+        }
+
+        if (!resetHandled) {
             // 로컬 오프라인 모드 메일 발송
             const to = targetUser.email;
             const subjectText = '[ScoreQuery] 교수자 계정 비밀번호 초기화 안내';
@@ -5437,9 +5647,14 @@
             sendMail(to, subjectText, bodyText);
         }
 
-        users[idx].pw = pwHashed;
+        if (resetSource === 'server') {
+            delete users[idx].pw;
+        } else {
+            users[idx].pw = pwHashed;
+        }
         localStorage.setItem('scorequery_users', JSON.stringify(users));
         renderMasterPendingList();
+        alert(`✅ ${targetUser.name} 교수님의 비밀번호가 임시 비밀번호로 초기화되었습니다.\n\n임시 비밀번호: ${tempPw}\n\n(이 정보는 가입자에게 별도로 전달해 주세요.)`);
     }
 
     async function handleReject(email) {
@@ -5449,23 +5664,18 @@
 
         if (!confirm('정말 본 신청을 반려 처리하시겠습니까?')) return;
 
-        const gasUrl = localStorage.getItem('scorequery_gas_url');
-        if (gasUrl) {
-            try {
-                showMailLoading(true);
-                await callGasApi('reject', { email: email }, {
-                    email: currentUser.email,
-                    pwHash: currentUser.pw
-                });
-                showMailLoading(false);
-            } catch (err) {
-                showMailLoading(false);
-                alert('⚠️ 원격 반려 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
-                return;
-            }
+        let remoteResult = { source: 'local' };
+        try {
+            showMailLoading(true);
+            remoteResult = await updateAuthStatusRemote(email, 'rejected', 'reject');
+            showMailLoading(false);
+        } catch (err) {
+            showMailLoading(false);
+            alert('⚠️ 원격 반려 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
+            return;
         }
 
-        users[idx].status = 'rejected';
+        users[idx] = remoteResult.user || { ...users[idx], status: 'rejected' };
         localStorage.setItem('scorequery_users', JSON.stringify(users));
         renderMasterPendingList();
     }
@@ -5477,23 +5687,18 @@
 
         if (!confirm('⚠️ 정말 본 회원의 가입 승인을 취소하고 반려 상태로 전환하시겠습니까?\n이 회원은 로그인 권한을 즉시 상실하게 됩니다.')) return;
 
-        const gasUrl = localStorage.getItem('scorequery_gas_url');
-        if (gasUrl) {
-            try {
-                showMailLoading(true);
-                await callGasApi('reject', { email: email }, {
-                    email: currentUser.email,
-                    pwHash: currentUser.pw
-                });
-                showMailLoading(false);
-            } catch (err) {
-                showMailLoading(false);
-                alert('⚠️ 원격 가입 취소 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
-                return;
-            }
+        let remoteResult = { source: 'local' };
+        try {
+            showMailLoading(true);
+            remoteResult = await updateAuthStatusRemote(email, 'rejected', 'reject');
+            showMailLoading(false);
+        } catch (err) {
+            showMailLoading(false);
+            alert('⚠️ 원격 가입 취소 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
+            return;
         }
 
-        users[idx].status = 'rejected';
+        users[idx] = remoteResult.user || { ...users[idx], status: 'rejected' };
         localStorage.setItem('scorequery_users', JSON.stringify(users));
         renderMasterPendingList();
     }
@@ -5506,24 +5711,18 @@
         const targetUser = users[idx];
         if (!confirm(`⚠️ 정말로 ${targetUser.name} 교수님의 계정을 삭제하시겠습니까?\n계정 정보는 삭제 이력 로그(Soft Delete)에 영구 보존됩니다.`)) return;
 
-        const gasUrl = localStorage.getItem('scorequery_gas_url');
-        if (gasUrl) {
-            try {
-                showMailLoading(true);
-                await callGasApi('delete', { email: email }, {
-                    email: currentUser.email,
-                    pwHash: currentUser.pw
-                });
-                showMailLoading(false);
-            } catch (err) {
-                showMailLoading(false);
-                alert('⚠️ 원격 계정 삭제 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
-                return;
-            }
+        let remoteResult = { source: 'local' };
+        try {
+            showMailLoading(true);
+            remoteResult = await updateAuthStatusRemote(email, 'deleted', 'delete');
+            showMailLoading(false);
+        } catch (err) {
+            showMailLoading(false);
+            alert('⚠️ 원격 계정 삭제 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
+            return;
         }
 
-        users[idx].status = 'deleted';
-        users[idx].deletedDate = new Date().toISOString();
+        users[idx] = remoteResult.user || { ...users[idx], status: 'deleted', deletedDate: new Date().toISOString() };
         localStorage.setItem('scorequery_users', JSON.stringify(users));
         renderMasterPendingList();
         alert(`🗑️ ${targetUser.name} 교수님의 계정이 성공적으로 삭제 처리되어 이력 로그에 기록되었습니다.`);
@@ -5537,26 +5736,19 @@
         const targetUser = users[idx];
         if (!confirm(`ℹ️ ${targetUser.name} 교수님의 삭제된 계정을 가입 신청(대기) 상태로 복구하시겠습니까?`)) return;
 
-        const gasUrl = localStorage.getItem('scorequery_gas_url');
-        if (gasUrl) {
-            try {
-                showMailLoading(true);
-                await callGasApi('restore', { email: email }, {
-                    email: currentUser.email,
-                    pwHash: currentUser.pw
-                });
-                showMailLoading(false);
-            } catch (err) {
-                showMailLoading(false);
-                alert('⚠️ 원격 계정 복구 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
-                return;
-            }
+        let remoteResult = { source: 'local' };
+        try {
+            showMailLoading(true);
+            remoteResult = await updateAuthStatusRemote(email, 'pending', 'restore');
+            showMailLoading(false);
+        } catch (err) {
+            showMailLoading(false);
+            alert('⚠️ 원격 계정 복구 처리에 실패했습니다: ' + (err.message || '네트워크 오류'));
+            return;
         }
 
-        users[idx].status = 'pending';
-        if (users[idx].deletedDate) {
-            delete users[idx].deletedDate;
-        }
+        users[idx] = remoteResult.user || { ...users[idx], status: 'pending' };
+        if (users[idx].deletedDate) delete users[idx].deletedDate;
         localStorage.setItem('scorequery_users', JSON.stringify(users));
         renderMasterPendingList();
         alert(`✨ ${targetUser.name} 교수님의 계정이 가입 대기 상태로 복구되었습니다.`);
@@ -5574,12 +5766,26 @@
         }
 
         try {
-            if (localStorage.getItem('scorequery_gas_url')) {
+            let withdrawalHandled = false;
+            if (currentUser._authProvider === 'server' || hasConfiguredServerApi()) {
+                try {
+                    await callServerJson('/api/auth/withdraw', { method: 'POST', payload: {} });
+                    withdrawalHandled = true;
+                } catch (err) {
+                    if (currentUser._authProvider === 'server') {
+                        throw err;
+                    }
+                    console.warn('[ScoreQuery] Server withdrawal failed, using GAS/local fallback if available.', err);
+                }
+            }
+            if (!withdrawalHandled && localStorage.getItem('scorequery_gas_url')) {
                 await callGasApi('withdraw_request', null, {
                     email: currentUser.email,
                     pwHash: currentUser.pw
                 });
-            } else {
+                withdrawalHandled = true;
+            }
+            if (!withdrawalHandled) {
                 const users = JSON.parse(localStorage.getItem('scorequery_users') || '[]');
                 const idx = users.findIndex(u => u.email === currentUser.email);
                 if (idx >= 0) {
@@ -5595,7 +5801,15 @@
         }
     }
 
-    function handleLogoutAction() {
+    async function handleLogoutAction() {
+        const shouldLogoutServer = currentUser && currentUser._authProvider === 'server';
+        if (shouldLogoutServer) {
+            try {
+                await callServerJson('/api/auth/logout', { method: 'POST', payload: {} });
+            } catch (e) {
+                console.warn('[ScoreQuery] Server logout failed:', e);
+            }
+        }
         currentUser = null;
         sessionStorage.removeItem('scorequery_session');
         
@@ -6328,6 +6542,26 @@
         };
     }
 
+    async function refreshServerViewStats(course, widget, textEl, fillEl) {
+        const courseId = getCourseId(course);
+        const stats = await getLocalAdminJson(`/api/view_stats?course_id=${encodeURIComponent(courseId)}`);
+        if (!stats || !stats.success) return;
+
+        sessionStorage.setItem(`scorequery_server_view_stats_${courseId}`, JSON.stringify(stats));
+        const totalCount = stats.total || 0;
+        const viewedCount = stats.viewed || 0;
+        const percent = totalCount ? Number(stats.percent || ((viewedCount / totalCount) * 100)).toFixed(1) : '0.0';
+
+        widget.style.display = 'block';
+        textEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>서버 조회 로그 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(열람률 <strong>${percent}%</strong>)이 확인되었습니다.`;
+        fillEl.style.width = `${percent}%`;
+
+        const btnDetail = document.getElementById('btn-view-stats-detail');
+        if (btnDetail) {
+            btnDetail.style.display = 'inline-flex';
+        }
+    }
+
     function renderViewStats() {
         const widget = document.getElementById('course-view-stats-widget');
         const textEl = document.getElementById('course-view-stats-text');
@@ -6339,6 +6573,7 @@
             widget.style.display = 'none';
             return;
         }
+        refreshServerViewStats(course, widget, textEl, fillEl);
 
         let rawData = null;
         for (const key of getCourseDataKeys(course)) {
@@ -6388,7 +6623,7 @@
 
             const percent = ((viewedCount / totalCount) * 100).toFixed(1);
             widget.style.display = 'block';
-            textEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>이 브라우저에 저장된 열람 기록 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(참고율 <strong>${percent}%</strong>)이 확인되었습니다.<br><span style="font-size:11px;color:var(--text-muted);">정확한 전체 열람률은 서버/GAS 로그 수집 기능을 별도로 연결해야 합니다.</span>`;
+            textEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>이 브라우저에 저장된 열람 기록 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(참고율 <strong>${percent}%</strong>)이 확인되었습니다.<br><span style="font-size:11px;color:var(--text-muted);">서버 API와 관리자 토큰이 연결되면 전체 열람률은 서버 조회 로그 기준으로 표시됩니다.</span>`;
             fillEl.style.width = `${percent}%`;
 
             // 자세히 보기 버튼 표시 처리
@@ -6454,6 +6689,67 @@
             .replace(/'/g, '&#039;');
     }
 
+    function renderServerStatsDetail(stats, filterType, summaryEl, tbody) {
+        const course = stats.course || adminConfig.course || {};
+        const totalCount = stats.total || 0;
+        const viewedCount = stats.viewed || 0;
+        const percent = totalCount ? Number(stats.percent || ((viewedCount / totalCount) * 100)).toFixed(1) : '0.0';
+        const studentsList = (stats.students || []).map(s => ({
+            name: s.name_masked || '이*름',
+            sid: s.student_id_masked || '학*번',
+            department: s.department || '-',
+            classNum: s.class_num || '-',
+            isViewed: !!s.is_viewed,
+            viewDate: s.view_date || null
+        })).sort((a, b) => a.sid.localeCompare(b.sid));
+
+        summaryEl.innerHTML = `📚 <strong>${course.year || ''} ${course.semester || ''} — ${course.name || ''}</strong><br>서버 조회 로그 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(열람률 <strong>${percent}%</strong>)이 확인되었습니다.`;
+
+        const tabAll = document.getElementById('tab-filter-all');
+        const tabViewed = document.getElementById('tab-filter-viewed');
+        const tabUnviewed = document.getElementById('tab-filter-unviewed');
+        if (tabAll) tabAll.textContent = `전체 (${totalCount})`;
+        if (tabViewed) tabViewed.textContent = `열람함 (${viewedCount})`;
+        if (tabUnviewed) tabUnviewed.textContent = `미열람 (${Math.max(totalCount - viewedCount, 0)})`;
+
+        let filteredList = studentsList;
+        if (filterType === 'viewed') {
+            filteredList = studentsList.filter(s => s.isViewed);
+        } else if (filterType === 'unviewed') {
+            filteredList = studentsList.filter(s => !s.isViewed);
+        }
+
+        if (filteredList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 20px;">조건에 해당하는 학생이 없습니다.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filteredList.map((s, idx) => {
+            const statusBadge = s.isViewed
+                ? '<span class="badge-viewed">열람</span>'
+                : '<span class="badge-unviewed">미열람</span>';
+            let dateStr = '-';
+            if (s.isViewed && s.viewDate) {
+                try {
+                    const d = new Date(s.viewDate);
+                    const pad = (n) => String(n).padStart(2, '0');
+                    dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                } catch (err) {
+                    dateStr = '-';
+                }
+            }
+            return `
+                <tr>
+                    <td style="text-align: center; color: var(--text-secondary);">${idx + 1}</td>
+                    <td>${escapeHtml(s.name)}</td>
+                    <td>${escapeHtml(s.sid)}</td>
+                    <td style="text-align: center;">${statusBadge}</td>
+                    <td class="view-date-col" style="text-align: center; color: var(--text-secondary);">${dateStr}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
     function renderViewStatsDetail(filterType) {
         const summaryEl = document.getElementById('stats-detail-summary');
         const tbody = document.getElementById('stats-detail-tbody');
@@ -6461,6 +6757,16 @@
 
         const { course } = adminConfig;
         if (!course || !course.name) return;
+        try {
+            const cached = sessionStorage.getItem(`scorequery_server_view_stats_${getCourseId(course)}`);
+            if (cached) {
+                const stats = JSON.parse(cached);
+                if (stats && stats.success && Array.isArray(stats.students)) {
+                    renderServerStatsDetail(stats, filterType, summaryEl, tbody);
+                    return;
+                }
+            }
+        } catch (e) { /* fall back to browser-local stats */ }
 
         let rawData = null;
         for (const key of getCourseDataKeys(course)) {
@@ -6529,7 +6835,7 @@
             const unviewedCount = totalCount - viewedCount;
             const percent = ((viewedCount / totalCount) * 100).toFixed(1);
 
-            summaryEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>이 브라우저에 저장된 열람 기록 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(참고율 <strong>${percent}%</strong>)이 확인되었습니다.<br><span style="font-size:11px;color:var(--text-muted);">정확한 전체 열람률은 서버/GAS 로그 수집 기능을 별도로 연결해야 합니다.</span>`;
+            summaryEl.innerHTML = `📚 <strong>${course.year} ${course.semester} — ${course.name}</strong><br>이 브라우저에 저장된 열람 기록 기준: 총 <strong>${totalCount}</strong>명 중 <strong>${viewedCount}</strong>명(참고율 <strong>${percent}%</strong>)이 확인되었습니다.<br><span style="font-size:11px;color:var(--text-muted);">서버 API와 관리자 토큰이 연결되면 전체 열람률은 서버 조회 로그 기준으로 표시됩니다.</span>`;
             
             const tabAll = document.getElementById('tab-filter-all');
             const tabViewed = document.getElementById('tab-filter-viewed');
@@ -6705,7 +7011,7 @@
     function handlePasswordStrength(e) {
         const val = e.target.value;
         let score = 0;
-        if (val.length >= 8) score++;
+        if (val.length >= 10) score++;
         if (val.length >= 12) score++;
         if (/[a-z]/.test(val)) score++;
         if (/[A-Z]/.test(val)) score++;

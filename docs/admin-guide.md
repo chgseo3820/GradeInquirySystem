@@ -12,7 +12,16 @@
 |---|---|---|
 | `SCOREQUERY_ACCESS_CODE` | 학생 조회용 6자리 접속 비밀번호 | `/api/score` 운영 시 필수 |
 | `SCOREQUERY_DATA_PASSPHRASE` | `docs/data.enc.json` 암호화/복호화 패스프레이즈 | 빌드/저장 시 필수 |
-| `SCOREQUERY_ADMIN_TOKEN` | 로컬 Flask `/api/save_*` 관리자 토큰 | 관리자 API 사용 시 필수 |
+| `SCOREQUERY_ADMIN_TOKEN` | Flask 관리자 API 토큰 | 관리자 API 사용 시 필수 |
+| `SCOREQUERY_SECRET_KEY` | 서버 세션 서명 키 | 운영 시 필수 |
+| `SCOREQUERY_REQUIRE_HTTPS` | HTTPS가 아닌 요청 차단 (`1`/`true`) | 운영 시 권장 |
+| `SCOREQUERY_TRUST_PROXY` | 리버스 프록시의 `X-Forwarded-*` 헤더 신뢰 | 프록시 운영 시 필수 |
+| `SCOREQUERY_SESSION_COOKIE_SECURE` | 세션 쿠키 Secure 속성 (`SCOREQUERY_REQUIRE_HTTPS` 기본값 연동) | 선택 |
+| `SCOREQUERY_SESSION_COOKIE_SAMESITE` | 세션 쿠키 SameSite (`None`/`Lax`) | 교차 출처 운영 시 `None` 권장 |
+| `SCOREQUERY_PASSWORD_HASH` | `argon2`, `bcrypt`, `werkzeug` 중 선택 | 선택 |
+| `SCOREQUERY_AUTH_DB` | 서버 교수 인증 DB 경로 | 선택 |
+| `SCOREQUERY_VIEW_LOG_FILE` | 학생 조회 로그 JSONL 경로 | 선택 |
+| `SCOREQUERY_LOG_SALT` | 조회 로그 해시용 별도 salt | 운영 시 권장 |
 | `SCOREQUERY_HOST` | Flask 바인딩 호스트 (기본 `127.0.0.1`) | 선택 |
 | `SCOREQUERY_PORT` | Flask 포트 (기본 `5000`) | 선택 |
 | `SCOREQUERY_ALLOWED_ORIGINS` | CORS 화이트리스트 (콤마 구분) | 선택 |
@@ -93,6 +102,46 @@ python secure_files.py decrypt docs/data.enc.json --output-dir restored
 - `/api/score`는 IP당 60초에 30회로 요청 빈도가 제한되어 학번 무차별 대입을 완화합니다.
 - 다른 PC에서 접근이 필요하면 `SCOREQUERY_HOST`, `SCOREQUERY_ALLOWED_ORIGINS` 환경변수를 명시적으로 설정하고, 방화벽/HTTPS를 별도로 적용하세요.
 
+## 운영 WSGI/HTTPS 배포
+
+운영 환경에서는 `python app.py` 개발 서버를 인터넷에 직접 공개하지 않습니다. `wsgi:application`을 WSGI 서버로 실행하고 HTTPS 리버스 프록시 뒤에 둡니다.
+
+```powershell
+$env:SCOREQUERY_SECRET_KEY = "긴-임의-세션-키"
+$env:SCOREQUERY_REQUIRE_HTTPS = "1"
+$env:SCOREQUERY_TRUST_PROXY = "1"
+$env:SCOREQUERY_SESSION_COOKIE_SAMESITE = "None"
+$env:SCOREQUERY_ALLOWED_ORIGINS = "https://your-pages.example.com"
+gunicorn wsgi:application
+```
+
+Windows 서버에서는 동일한 WSGI 객체를 Waitress 등으로 실행할 수 있습니다. 프록시가 TLS를 종료한다면 `X-Forwarded-Proto`가 전달되도록 설정해야 합니다. GitHub Pages와 API 도메인이 다르면 `SCOREQUERY_SESSION_COOKIE_SAMESITE=None`과 `SCOREQUERY_ALLOWED_ORIGINS`를 함께 설정해야 서버 세션 쿠키가 교차 출처 요청에 포함됩니다.
+
+초기 서버 마스터 계정은 관리자 토큰으로 한 번 생성합니다.
+
+```powershell
+curl -X POST http://127.0.0.1:5000/api/auth/bootstrap `
+  -H "Content-Type: application/json" `
+  -H "X-Admin-Token: $env:SCOREQUERY_ADMIN_TOKEN" `
+  -d "{\"email\":\"master@example.edu\",\"password\":\"StrongPass!234\",\"name\":\"Master\"}"
+```
+
+## 서버 세션 인증 API
+
+- `/api/auth/bootstrap`은 `SCOREQUERY_ADMIN_TOKEN`으로 첫 마스터 계정을 생성합니다.
+- `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`, `/api/auth/change_password`, `/api/auth/withdraw`는 교수 계정 신청, 로그인, 세션 확인, 로그아웃, 비밀번호 변경, 본인 탈퇴에 사용합니다.
+- `/api/auth/users`, `/api/auth/set_status`는 마스터 세션 또는 관리자 토큰이 있을 때만 교수 계정 목록과 승인 상태를 관리합니다.
+- `/api/auth/reset_password`는 마스터 세션 또는 관리자 토큰으로 임시 비밀번호를 서버 해시로 재설정합니다.
+- 비밀번호는 기본적으로 Argon2 해시로 저장되며, 설치 환경에 따라 bcrypt 또는 Werkzeug 해시로 안전하게 대체됩니다.
+- 서버 인증 DB 기본 경로는 `instance/professors.json`이며, `instance/`는 Git 추적에서 제외됩니다.
+
+## 서버 조회 로그
+
+- `/api/score` 조회가 성공하면 학생 식별자, IP, User-Agent를 원문으로 저장하지 않고 해시 처리해 JSONL 로그에 남깁니다.
+- 로그 기본 경로는 `instance/view_logs.jsonl`이며, 운영 환경에서는 `SCOREQUERY_LOG_SALT`를 별도로 설정하는 것을 권장합니다.
+- `/api/view_stats?course_id=...`는 `SCOREQUERY_ADMIN_TOKEN`이 있을 때 전체 수강생 대비 열람/미열람 집계를 반환합니다.
+- 교수자 화면의 열람률 위젯은 서버 로그가 연결되면 서버 기준 값을 우선 표시하고, 연결되지 않은 경우에만 브라우저 로컬 기록을 참고값으로 표시합니다.
+
 ## 셀프 비밀번호 재설정 (Forgot Password)
 
 회원이 비밀번호를 잊은 경우, 마스터에게 따로 요청하지 않아도 본인 이메일로 인증 코드를 받아 직접 재설정할 수 있습니다.
@@ -144,5 +193,5 @@ python -c "import hashlib,getpass; print(hashlib.sha256(getpass.getpass('master 
 
 - GitHub Pages 정적 구조에서는 클라이언트가 키 파생 정보를 다루게 되므로, 패스프레이즈가 약하면 사전 공격에 노출될 수 있습니다. 12자 이상의 임의 패스프레이즈 사용을 권장합니다.
 - 동일 학번/전화번호 뒷자리 조합은 항상 같은 해시 키를 생성하므로, 학기 간 데이터를 다른 저장소/디렉토리로 분리하는 것이 좋습니다.
-- 비밀번호는 SHA-256 단일 해시로 저장됩니다(salt/iteration 없음). 마이그레이션 호환을 위해 유지된 정책이며, 강한 비밀번호 사용을 권장합니다.
-- 열람률은 현재 브라우저에 저장된 기록 기준 참고값입니다. 정확한 전체 열람률은 서버 또는 GAS 조회 로그 수집이 필요합니다.
+- GAS 호환 계정 흐름은 마이그레이션을 위해 SHA-256 해시를 유지합니다. 운영 서버 인증 API는 Argon2/bcrypt 계열 해시와 HttpOnly 세션 쿠키를 지원합니다.
+- API 조회는 서버 JSONL 로그에 기록되며 `/api/view_stats`로 집계됩니다. 정적 로컬 미리보기 조회는 브라우저 로컬 기록 기준 참고값입니다.

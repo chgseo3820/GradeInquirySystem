@@ -20,10 +20,28 @@ import re
 import json
 import time
 import hmac
+import hashlib
+import secrets
+import threading
 from collections import defaultdict, deque
+from datetime import datetime, timezone
 
-from flask import Flask, render_template, request, jsonify, send_from_directory, redirect
+from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, session
 import openpyxl
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import check_password_hash, generate_password_hash
+
+try:
+    from argon2 import PasswordHasher
+    from argon2 import exceptions as argon2_exceptions
+except Exception:  # pragma: no cover - optional production dependency
+    PasswordHasher = None
+    argon2_exceptions = None
+
+try:
+    import bcrypt
+except Exception:  # pragma: no cover - optional production dependency
+    bcrypt = None
 
 from scorequery_crypto import (
     PASSPHRASE_ENV,
@@ -37,6 +55,7 @@ from scorequery_crypto import (
 # 설정
 # ──────────────────────────────────────────────
 ADMIN_TOKEN_ENV = "SCOREQUERY_ADMIN_TOKEN"
+SECRET_KEY_ENV = "SCOREQUERY_SECRET_KEY"
 
 # Flask 기본 바인딩 (로컬 운영자 PC 전용). 외부 노출이 필요하면 환경변수로 override.
 DEFAULT_HOST = os.environ.get("SCOREQUERY_HOST", "127.0.0.1")
@@ -57,6 +76,25 @@ _rate_buckets: dict[str, deque] = defaultdict(deque)
 
 
 CONFIG_FILE = os.path.join("config.json")
+AUTH_DB_FILE = os.environ.get("SCOREQUERY_AUTH_DB", os.path.join("instance", "professors.json"))
+VIEW_LOG_FILE = os.environ.get("SCOREQUERY_VIEW_LOG_FILE", os.path.join("instance", "view_logs.jsonl"))
+PASSWORD_HASH_ALGO = os.environ.get("SCOREQUERY_PASSWORD_HASH", "argon2").strip().lower()
+
+
+def _bool_env(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+REQUIRE_HTTPS = _bool_env("SCOREQUERY_REQUIRE_HTTPS")
+TRUST_PROXY = _bool_env("SCOREQUERY_TRUST_PROXY")
+SESSION_COOKIE_SECURE = _bool_env("SCOREQUERY_SESSION_COOKIE_SECURE", REQUIRE_HTTPS)
+SESSION_COOKIE_SAMESITE = os.environ.get(
+    "SCOREQUERY_SESSION_COOKIE_SAMESITE",
+    "None" if ALLOWED_ORIGINS and SESSION_COOKIE_SECURE else "Lax",
+)
 
 
 def _get_configured_access_code() -> str:
@@ -75,10 +113,178 @@ def _get_configured_access_code() -> str:
     return ""
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _read_json_file(path: str, default):
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def _write_json_file(path: str, data) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, path)
+
+
+def _load_auth_users() -> list[dict]:
+    data = _read_json_file(AUTH_DB_FILE, [])
+    return data if isinstance(data, list) else []
+
+
+def _save_auth_users(users: list[dict]) -> None:
+    _write_json_file(AUTH_DB_FILE, users)
+
+
+def _sanitize_auth_user(user: dict | None) -> dict | None:
+    if not user:
+        return None
+    allowed = ("email", "name", "univ", "dept", "phone", "status", "isMaster", "regDate", "approveDate")
+    return {k: user.get(k) for k in allowed if k in user}
+
+
+def _find_auth_user(users: list[dict], email: str) -> tuple[int, dict | None]:
+    normalized = email.strip().lower()
+    for idx, user in enumerate(users):
+        if str(user.get("email", "")).strip().lower() == normalized:
+            return idx, user
+    return -1, None
+
+
+def _hash_password(password: str) -> str:
+    if PASSWORD_HASH_ALGO in {"argon2", "argon2id"} and _argon2_hasher:
+        return "argon2$" + _argon2_hasher.hash(password)
+    if PASSWORD_HASH_ALGO == "bcrypt" and bcrypt:
+        rounds = int(os.environ.get("SCOREQUERY_BCRYPT_ROUNDS", "12"))
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=rounds))
+        return "bcrypt$" + hashed.decode("utf-8")
+    return "werkzeug$" + generate_password_hash(password)
+
+
+def _verify_password(stored_hash: str, password: str) -> tuple[bool, bool]:
+    if not stored_hash:
+        return False, False
+
+    if stored_hash.startswith("argon2$") and _argon2_hasher:
+        encoded = stored_hash[len("argon2$") :]
+        try:
+            ok = _argon2_hasher.verify(encoded, password)
+            return ok, bool(ok and _argon2_hasher.check_needs_rehash(encoded))
+        except Exception:
+            return False, False
+
+    if stored_hash.startswith("bcrypt$") and bcrypt:
+        encoded = stored_hash[len("bcrypt$") :].encode("utf-8")
+        ok = bcrypt.checkpw(password.encode("utf-8"), encoded)
+        return bool(ok), bool(ok and PASSWORD_HASH_ALGO != "bcrypt")
+
+    if stored_hash.startswith("werkzeug$"):
+        encoded = stored_hash[len("werkzeug$") :]
+        ok = check_password_hash(encoded, password)
+        return bool(ok), bool(ok and PASSWORD_HASH_ALGO in {"argon2", "argon2id", "bcrypt"})
+
+    if re.fullmatch(r"[0-9a-f]{64}", stored_hash):
+        ok = hmac.compare_digest(hashlib.sha256(password.encode("utf-8")).hexdigest(), stored_hash)
+        return bool(ok), bool(ok)
+
+    return False, False
+
+
+def _validate_password_strength(password: str) -> str | None:
+    if len(password) < 10:
+        return "비밀번호는 10자 이상이어야 합니다."
+    checks = [
+        re.search(r"[a-z]", password),
+        re.search(r"[A-Z]", password),
+        re.search(r"\d", password),
+        re.search(r"[^A-Za-z0-9]", password),
+    ]
+    if sum(1 for c in checks if c) < 3:
+        return "비밀번호는 영문 대/소문자, 숫자, 특수문자 중 3종 이상을 포함해야 합니다."
+    return None
+
+
+def _current_auth_user() -> dict | None:
+    user = session.get("scorequery_user")
+    return user if isinstance(user, dict) else None
+
+
+def _require_server_master_or_admin() -> tuple[bool, str | None]:
+    ok, _ = _require_admin()
+    if ok:
+        return True, None
+    user = _current_auth_user()
+    if user and bool(user.get("isMaster")):
+        return True, None
+    return False, "마스터 세션 또는 관리자 API 토큰이 필요합니다."
+
+
+def _log_secret() -> str:
+    return os.environ.get("SCOREQUERY_LOG_SALT") or app.secret_key
+
+
+def _student_view_id(course_id: str, sid) -> str:
+    msg = f"{course_id}|{sid}".encode("utf-8")
+    return hmac.new(_log_secret().encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+
+def _hash_for_log(value: str) -> str:
+    msg = str(value or "").encode("utf-8")
+    return hmac.new(_log_secret().encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+
+def _append_view_log(event: dict) -> None:
+    os.makedirs(os.path.dirname(VIEW_LOG_FILE) or ".", exist_ok=True)
+    line = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+    with _view_log_lock:
+        with open(VIEW_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+
+
+def _load_view_logs() -> list[dict]:
+    if not os.path.exists(VIEW_LOG_FILE):
+        return []
+    events: list[dict] = []
+    with _view_log_lock:
+        with open(VIEW_LOG_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(event, dict):
+                    events.append(event)
+    return events
+
+
 app = Flask(__name__, static_folder="docs/static")
+app.secret_key = os.environ.get(SECRET_KEY_ENV) or secrets.token_urlsafe(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE=SESSION_COOKIE_SAMESITE,
+    SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE,
+)
+if TRUST_PROXY:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
 ENCRYPTED_DATA_FILE = os.path.join("docs", "data.enc.json")
 PLAINTEXT_DATA_FILE = os.path.join("docs", "data.json")
 PUBLIC_CONFIG_FILE = os.path.join("docs", "public-config.json")
+
+_auth_lock = threading.Lock()
+_view_log_lock = threading.Lock()
+_argon2_hasher = PasswordHasher() if PasswordHasher else None
 
 
 # ──────────────────────────────────────────────
@@ -438,14 +644,35 @@ def load_excel():
 # ──────────────────────────────────────────────
 # CORS (제한적 화이트리스트)
 # ──────────────────────────────────────────────
+@app.before_request
+def enforce_https_if_configured():
+    if not REQUIRE_HTTPS:
+        return None
+    if request.method == "OPTIONS":
+        return None
+    if request.is_secure:
+        return None
+    host = request.host.split(":", 1)[0]
+    if host in {"127.0.0.1", "localhost"}:
+        return None
+    return jsonify({"error": "HTTPS 연결만 허용됩니다."}), 403
+
+
 @app.after_request
-def add_cors_headers(response):
+def add_security_and_cors_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if REQUIRE_HTTPS or request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
     origin = request.headers.get("Origin", "")
     if origin and origin in ALLOWED_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Admin-Token"
         response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 
@@ -584,8 +811,277 @@ def save_public_config():
 
 
 # ──────────────────────────────────────────────
+# 서버 세션 기반 교수 인증 API (운영 백엔드용)
+# ──────────────────────────────────────────────
+@app.route("/api/auth/bootstrap", methods=["POST", "OPTIONS"])
+def auth_bootstrap():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    ok, err = _require_admin()
+    if not ok:
+        return jsonify({"error": err}), 401
+
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+    name = str(data.get("name", "")).strip() or "ScoreQuery Master"
+
+    if not email or not password:
+        return jsonify({"error": "email, password가 필요합니다."}), 400
+    password_error = _validate_password_strength(password)
+    if password_error:
+        return jsonify({"error": password_error}), 400
+
+    with _auth_lock:
+        users = _load_auth_users()
+        if users and not data.get("force"):
+            return jsonify({"error": "이미 서버 인증 사용자가 있습니다."}), 409
+        idx, existing = _find_auth_user(users, email)
+        user = {
+            "email": email,
+            "name": name,
+            "univ": str(data.get("univ", "")).strip(),
+            "dept": str(data.get("dept", "")).strip(),
+            "phone": str(data.get("phone", "")).strip(),
+            "pw": _hash_password(password),
+            "status": "approved",
+            "isMaster": True,
+            "regDate": existing.get("regDate") if existing else _now_iso(),
+            "approveDate": _now_iso(),
+        }
+        if idx >= 0:
+            users[idx] = user
+        else:
+            users.append(user)
+        _save_auth_users(users)
+
+    return jsonify({"success": True, "user": _sanitize_auth_user(user)})
+
+
+@app.route("/api/auth/register", methods=["POST", "OPTIONS"])
+def auth_register():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+    if not email or not password:
+        return jsonify({"error": "email, password가 필요합니다."}), 400
+    password_error = _validate_password_strength(password)
+    if password_error:
+        return jsonify({"error": password_error}), 400
+
+    with _auth_lock:
+        users = _load_auth_users()
+        if not users:
+            return jsonify({"error": "최초 마스터는 /api/auth/bootstrap으로 생성해야 합니다."}), 409
+        idx, existing = _find_auth_user(users, email)
+        if existing and existing.get("status") != "rejected":
+            return jsonify({"error": "이미 등록된 이메일입니다."}), 409
+
+        user = {
+            "email": email,
+            "name": str(data.get("name", "")).strip(),
+            "univ": str(data.get("univ", "")).strip(),
+            "dept": str(data.get("dept", "")).strip(),
+            "phone": str(data.get("phone", "")).strip(),
+            "pw": _hash_password(password),
+            "status": "pending",
+            "isMaster": False,
+            "regDate": _now_iso(),
+            "approveDate": "",
+        }
+        if idx >= 0:
+            users[idx] = user
+        else:
+            users.append(user)
+        _save_auth_users(users)
+
+    return jsonify({"success": True, "user": _sanitize_auth_user(user)})
+
+
+@app.route("/api/auth/login", methods=["POST", "OPTIONS"])
+def auth_login():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+    if not email or not password:
+        return jsonify({"error": "email, password가 필요합니다."}), 400
+
+    with _auth_lock:
+        users = _load_auth_users()
+        if not users:
+            return jsonify({"error": "최초 마스터는 /api/auth/bootstrap으로 생성해야 합니다."}), 409
+        idx, user = _find_auth_user(users, email)
+        ok, needs_rehash = _verify_password(str(user.get("pw", "")) if user else "", password)
+        if not user or not ok:
+            return jsonify({"error": "이메일 또는 비밀번호가 올바르지 않습니다."}), 401
+        if user.get("status") != "approved":
+            return jsonify({"error": "승인된 계정만 로그인할 수 있습니다.", "status": user.get("status")}), 403
+        if needs_rehash:
+            user["pw"] = _hash_password(password)
+            users[idx] = user
+            _save_auth_users(users)
+
+    safe_user = _sanitize_auth_user(user)
+    session["scorequery_user"] = safe_user
+    session.permanent = False
+    return jsonify({"success": True, "user": safe_user})
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    user = _current_auth_user()
+    return jsonify({"authenticated": bool(user), "user": user})
+
+
+@app.route("/api/auth/logout", methods=["POST", "OPTIONS"])
+def auth_logout():
+    if request.method == "OPTIONS":
+        return "", 204
+    session.pop("scorequery_user", None)
+    return jsonify({"success": True})
+
+
+@app.route("/api/auth/change_password", methods=["POST", "OPTIONS"])
+def auth_change_password():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    current = _current_auth_user()
+    if not current:
+        return jsonify({"error": "로그인이 필요합니다."}), 401
+
+    data = request.get_json(silent=True) or {}
+    old_password = str(data.get("old_password", ""))
+    new_password = str(data.get("new_password", ""))
+    password_error = _validate_password_strength(new_password)
+    if password_error:
+        return jsonify({"error": password_error}), 400
+
+    with _auth_lock:
+        users = _load_auth_users()
+        idx, user = _find_auth_user(users, str(current.get("email", "")))
+        ok, _ = _verify_password(str(user.get("pw", "")) if user else "", old_password)
+        if not user or not ok:
+            return jsonify({"error": "현재 비밀번호가 올바르지 않습니다."}), 401
+        user["pw"] = _hash_password(new_password)
+        users[idx] = user
+        _save_auth_users(users)
+
+    return jsonify({"success": True})
+
+
+@app.route("/api/auth/users", methods=["GET", "OPTIONS"])
+def auth_users():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    ok, err = _require_server_master_or_admin()
+    if not ok:
+        return jsonify({"error": err}), 401
+    users = [_sanitize_auth_user(user) for user in _load_auth_users()]
+    return jsonify({"success": True, "users": users})
+
+
+@app.route("/api/auth/set_status", methods=["POST", "OPTIONS"])
+def auth_set_status():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    ok, err = _require_server_master_or_admin()
+    if not ok:
+        return jsonify({"error": err}), 401
+
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    status = str(data.get("status", "")).strip()
+    if status not in {"pending", "approved", "rejected", "deleted"}:
+        return jsonify({"error": "허용되지 않는 status입니다."}), 400
+
+    with _auth_lock:
+        users = _load_auth_users()
+        idx, user = _find_auth_user(users, email)
+        if not user:
+            return jsonify({"error": "사용자를 찾을 수 없습니다."}), 404
+        user["status"] = status
+        if status == "approved":
+            user["approveDate"] = _now_iso()
+        users[idx] = user
+        _save_auth_users(users)
+
+    return jsonify({"success": True, "user": _sanitize_auth_user(user)})
+
+
+# ──────────────────────────────────────────────
 # Routes
 # ──────────────────────────────────────────────
+@app.route("/api/auth/reset_password", methods=["POST", "OPTIONS"])
+def auth_reset_password():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    ok, err = _require_server_master_or_admin()
+    if not ok:
+        return jsonify({"error": err}), 401
+
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+    password_error = _validate_password_strength(password)
+    if not email or password_error:
+        return jsonify({"error": password_error or "email, password가 필요합니다."}), 400
+
+    with _auth_lock:
+        users = _load_auth_users()
+        idx, user = _find_auth_user(users, email)
+        if not user:
+            return jsonify({"error": "사용자를 찾을 수 없습니다."}), 404
+        user["pw"] = _hash_password(password)
+        users[idx] = user
+        _save_auth_users(users)
+
+    return jsonify({"success": True, "user": _sanitize_auth_user(user)})
+
+
+@app.route("/api/auth/withdraw", methods=["POST", "OPTIONS"])
+def auth_withdraw():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    current = _current_auth_user()
+    if not current:
+        return jsonify({"error": "로그인이 필요합니다."}), 401
+    if current.get("isMaster"):
+        return jsonify({"error": "마스터 계정은 탈퇴할 수 없습니다."}), 400
+
+    data = request.get_json(silent=True) or {}
+    current_password = str(data.get("current_password", ""))
+
+    with _auth_lock:
+        users = _load_auth_users()
+        idx, user = _find_auth_user(users, str(current.get("email", "")))
+        if not user:
+            return jsonify({"error": "사용자를 찾을 수 없습니다."}), 404
+        if current_password:
+            ok, _ = _verify_password(str(user.get("pw", "")), current_password)
+            if not ok:
+                return jsonify({"error": "현재 비밀번호가 올바르지 않습니다."}), 401
+        user["status"] = "deleted"
+        user["withdrawReqDate"] = _now_iso()
+        user["withdrawApproveDate"] = _now_iso()
+        users[idx] = user
+        _save_auth_users(users)
+
+    session.pop("scorequery_user", None)
+    return jsonify({"success": True, "user": _sanitize_auth_user(user)})
+
+
 @app.route("/")
 def index():
     """메인 페이지 서빙 (docs/index.html을 직접 서비스)"""
@@ -614,6 +1110,76 @@ def get_courses():
     if not students:
         return jsonify({"courses": []})
     return jsonify({"courses": [metadata]})
+
+
+def _record_score_view(course: dict, sid: int, student: dict) -> None:
+    course_id = str(course.get("id") or _course_id(course))
+    event = {
+        "event": "score_view",
+        "timestamp": _now_iso(),
+        "course_id": course_id,
+        "student_view_id": _student_view_id(course_id, sid),
+        "class_num": student.get("class_num"),
+        "ip_hash": _hash_for_log(_client_ip()),
+        "user_agent_hash": _hash_for_log(request.headers.get("User-Agent", "")),
+    }
+    try:
+        _append_view_log(event)
+    except Exception as exc:
+        print(f"[ScoreQuery] view log write failed: {exc}")
+
+
+@app.route("/api/view_stats", methods=["GET", "OPTIONS"])
+def get_view_stats():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    ok, err = _require_admin()
+    if not ok:
+        return jsonify({"error": err}), 401
+
+    metadata = course_metadata or _derive_course_metadata()
+    course_id = str(request.args.get("course_id") or metadata.get("id") or _course_id(metadata))
+    events = [
+        event for event in _load_view_logs()
+        if event.get("event") == "score_view" and str(event.get("course_id")) == course_id
+    ]
+
+    latest_by_student: dict[str, str] = {}
+    for event in events:
+        view_id = str(event.get("student_view_id") or "")
+        timestamp = str(event.get("timestamp") or "")
+        if not view_id or not timestamp:
+            continue
+        existing = latest_by_student.get(view_id)
+        if not existing or timestamp > existing:
+            latest_by_student[view_id] = timestamp
+
+    student_rows = []
+    for sid, student in students.items():
+        view_id = _student_view_id(course_id, sid)
+        view_date = latest_by_student.get(view_id)
+        student_rows.append({
+            "student_id_masked": mask_student_id(sid),
+            "name_masked": mask_name(student.get("name", "")),
+            "department": student.get("department", ""),
+            "class_num": student.get("class_num"),
+            "is_viewed": bool(view_date),
+            "view_date": view_date,
+        })
+
+    viewed_count = sum(1 for row in student_rows if row["is_viewed"])
+    total_count = len(student_rows)
+    return jsonify({
+        "success": True,
+        "course": metadata,
+        "course_id": course_id,
+        "total": total_count,
+        "viewed": viewed_count,
+        "unviewed": max(total_count - viewed_count, 0),
+        "percent": round((viewed_count / total_count) * 100, 1) if total_count else 0,
+        "students": student_rows,
+    })
 
 
 @app.route("/api/score", methods=["POST"])
@@ -700,9 +1266,12 @@ def get_score():
         if k.endswith("_score") and k != "total_score":
             student_res[k] = student[k]
 
+    course = course_metadata or _derive_course_metadata()
+    _record_score_view(course, sid, student)
+
     response = {
         "student": student_res,
-        "course": course_metadata or _derive_course_metadata(),
+        "course": course,
         "evaluation": dynamic_eval_meta,
         "class_avg": avg,
         "class_max": mx,
@@ -725,13 +1294,22 @@ if __name__ == "__main__":
     if not _get_admin_token():
         print(
             f"[ScoreQuery] ⚠️  {ADMIN_TOKEN_ENV} 환경변수가 설정되지 않아 "
-            "관리자 API(/api/save_data, /api/save_public_config)는 비활성화됩니다."
+            "관리자 API(/api/save_data, /api/save_public_config, /api/view_stats)는 비활성화됩니다."
+        )
+
+    if not os.environ.get(SECRET_KEY_ENV):
+        print(
+            f"[ScoreQuery] ⚠️  {SECRET_KEY_ENV} 환경변수가 없어 서버 세션 키가 재시작마다 바뀝니다. "
+            "운영 환경에서는 반드시 긴 임의 값을 설정하세요."
         )
 
     if DEFAULT_HOST not in ("127.0.0.1", "localhost"):
         print(
             f"[ScoreQuery] ⚠️  외부 접근 가능한 호스트({DEFAULT_HOST})로 바인딩합니다. "
-            f"방화벽/HTTPS/관리자 토큰 보호를 반드시 적용하세요."
+            "개발 서버 직접 공개 대신 WSGI 서버 + HTTPS 리버스 프록시를 사용하세요."
         )
+
+    if REQUIRE_HTTPS and not TRUST_PROXY:
+        print("[ScoreQuery] ⚠️  HTTPS 강제 모드입니다. 프록시 뒤 운영이면 SCOREQUERY_TRUST_PROXY=1 설정을 확인하세요.")
 
     app.run(host=DEFAULT_HOST, port=DEFAULT_PORT, debug=False)

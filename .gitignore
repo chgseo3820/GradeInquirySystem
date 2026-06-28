@@ -33,6 +33,8 @@ config.enc.json
 deploy_temp/
 restored/
 *.log
+*.jsonl
+instance/
 
 # ───── OS ─────
 .DS_Store
