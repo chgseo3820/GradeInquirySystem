@@ -3006,7 +3006,22 @@
         // minscore listeners removed as they are handled dynamically
 
         function updateLabels() {
-            const distType = distTypeSelect.value;
+            const currentDistTypeSelect = document.getElementById('grading-dist-type');
+            if (!currentDistTypeSelect) return;
+            const distType = currentDistTypeSelect.value;
+            
+            const currentInputs = [
+                document.getElementById('grading-val-a'),
+                document.getElementById('grading-val-b'),
+                document.getElementById('grading-val-c'),
+                document.getElementById('grading-val-d')
+            ];
+            const currentPlusInputs = [
+                document.getElementById('grading-plus-a'),
+                document.getElementById('grading-plus-b'),
+                document.getElementById('grading-plus-c'),
+                document.getElementById('grading-plus-d')
+            ];
             const valLabels = document.querySelectorAll('.grading-val-label');
             const plusLabels = [
                 document.getElementById('grading-plus-a-label'),
@@ -3014,17 +3029,13 @@
                 document.getElementById('grading-plus-c-label'),
                 document.getElementById('grading-plus-d-label')
             ];
-            const plusInputs = [
-                document.getElementById('grading-plus-a'),
-                document.getElementById('grading-plus-b'),
-                document.getElementById('grading-plus-c'),
-                document.getElementById('grading-plus-d')
-            ];
+            const rulesTitle = document.getElementById('grading-rules-title');
+            
             const grades = ['A', 'B', 'C', 'D'];
 
             if (distType === 'ratio') {
-                rulesTitle.textContent = '구간별 비율 설정 (총합 100%)';
-                inputs.forEach(input => {
+                if (rulesTitle) rulesTitle.textContent = '구간별 비율 설정 (총합 100%)';
+                currentInputs.forEach(input => {
                     if (input) {
                         input.max = 100;
                         input.placeholder = '%';
@@ -3035,7 +3046,7 @@
                 plusLabels.forEach((lbl, idx) => {
                     if (lbl) lbl.textContent = `${grades[idx]}등급내 ${grades[idx]}+비율(%)`;
                 });
-                plusInputs.forEach(input => {
+                currentPlusInputs.forEach(input => {
                     if (input) {
                         input.max = 100;
                         input.placeholder = '%';
@@ -3045,8 +3056,8 @@
                 checkRatioSum();
             } else {
                 const totalStudents = getPendingStudentList().length;
-                rulesTitle.textContent = `구간별 인원 설정 (총합: ${totalStudents}명)`;
-                inputs.forEach(input => {
+                if (rulesTitle) rulesTitle.textContent = `구간별 인원 설정 (총합: ${totalStudents}명)`;
+                currentInputs.forEach(input => {
                     if (input) {
                         input.removeAttribute('max');
                         input.placeholder = '명';
@@ -3057,7 +3068,7 @@
                 plusLabels.forEach((lbl, idx) => {
                     if (lbl) lbl.textContent = `${grades[idx]}등급내 ${grades[idx]}+인원(명)`;
                 });
-                plusInputs.forEach(input => {
+                currentPlusInputs.forEach(input => {
                     if (input) {
                         input.removeAttribute('max');
                         input.placeholder = '명';
@@ -3069,23 +3080,36 @@
         }
 
         function checkRatioSum() {
-            const distType = distTypeSelect.value;
-            const sum = inputs.reduce((acc, input) => acc + (parseFloat(input.value) || 0), 0);
+            const currentDistTypeSelect = document.getElementById('grading-dist-type');
+            if (!currentDistTypeSelect) return;
+            const distType = currentDistTypeSelect.value;
+            
+            const currentInputs = [
+                document.getElementById('grading-val-a'),
+                document.getElementById('grading-val-b'),
+                document.getElementById('grading-val-c'),
+                document.getElementById('grading-val-d')
+            ];
+            
+            const sum = currentInputs.reduce((acc, input) => acc + (parseFloat(input ? input.value : 0) || 0), 0);
             const sumSpan = document.getElementById('grading-rules-sum-current');
             if (sumSpan) sumSpan.textContent = sum;
 
             const btnRun = document.getElementById('btn-grading-b-run');
+            const rulesWarning = document.getElementById('grading-rules-sum-warning');
             
             if (distType === 'ratio') {
                 if (Math.abs(sum - 100) > 0.01) {
-                    if (rulesWarning) rulesWarning.style.display = 'block';
+                    if (rulesWarning) {
+                        rulesWarning.innerHTML = `⚠️ 비율의 총합이 100%가 되어야 합니다. (현재: <span id="grading-rules-sum-current">${sum}</span>%)`;
+                        rulesWarning.style.display = 'block';
+                    }
                     if (btnRun) btnRun.setAttribute('disabled', 'true');
                 } else {
                     if (rulesWarning) rulesWarning.style.display = 'none';
                     if (btnRun) btnRun.removeAttribute('disabled');
                 }
             } else {
-                // 인원일 경우 총합이 학생수와 같은지 체크
                 const totalStudents = getPendingStudentList().length;
                 if (sum !== totalStudents) {
                     if (rulesWarning) {
@@ -3105,10 +3129,10 @@
             const barC = document.getElementById('bar-c');
             const barD = document.getElementById('bar-d');
             if (barA && barB && barC && barD) {
-                const valA = parseFloat(inputs[0].value) || 0;
-                const valB = parseFloat(inputs[1].value) || 0;
-                const valC = parseFloat(inputs[2].value) || 0;
-                const valD = parseFloat(inputs[3].value) || 0;
+                const valA = parseFloat(currentInputs[0] ? currentInputs[0].value : 0) || 0;
+                const valB = parseFloat(currentInputs[1] ? currentInputs[1].value : 0) || 0;
+                const valC = parseFloat(currentInputs[2] ? currentInputs[2].value : 0) || 0;
+                const valD = parseFloat(currentInputs[3] ? currentInputs[3].value : 0) || 0;
                 const total = valA + valB + valC + valD;
                 const divTotal = total > 0 ? total : (distType === 'ratio' ? 100 : Math.max(1, getPendingStudentList().length));
                 
