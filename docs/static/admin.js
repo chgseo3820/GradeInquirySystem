@@ -3086,6 +3086,27 @@
             const sumSpan = document.getElementById('grading-rules-sum-current');
             if (sumSpan) sumSpan.textContent = sum;
 
+            const totalStudents = getPendingStudentList().length;
+            const headcountInfo = document.getElementById('grading-headcount-info');
+            
+            let distributed = 0;
+            if (distType === 'ratio') {
+                distributed = Math.round(totalStudents * (sum / 100));
+            } else {
+                distributed = sum;
+            }
+            const remaining = totalStudents - distributed;
+
+            if (headcountInfo) {
+                if (remaining > 0) {
+                    headcountInfo.innerHTML = `총 <span style="font-weight:700;">${totalStudents}</span>명 / 배부: <span style="font-weight:700; color:#38bdf8;">${distributed}</span>명 / 남은 인원: <span style="font-weight:700; color:#f87171;">${remaining}</span>명`;
+                } else if (remaining < 0) {
+                    headcountInfo.innerHTML = `총 <span style="font-weight:700;">${totalStudents}</span>명 / 배부: <span style="font-weight:700; color:#f87171;">${distributed}</span>명 / 초과 인원: <span style="font-weight:700; color:#f87171;">${Math.abs(remaining)}</span>명`;
+                } else {
+                    headcountInfo.innerHTML = `총 <span style="font-weight:700;">${totalStudents}</span>명 / 배부: <span style="font-weight:700; color:#10b981;">${distributed}</span>명 / 남은 인원: <span style="font-weight:700;">0</span>명`;
+                }
+            }
+
             const btnRun = document.getElementById('btn-grading-b-run');
             const rulesWarning = document.getElementById('grading-rules-sum-warning');
             
@@ -3101,7 +3122,6 @@
                     if (btnRun) btnRun.removeAttribute('disabled');
                 }
             } else {
-                const totalStudents = getPendingStudentList().length;
                 if (sum !== totalStudents) {
                     if (rulesWarning) {
                         rulesWarning.innerHTML = `⚠️ 인원의 총합이 전체 학생 수(${totalStudents}명)와 같아야 합니다. (현재: <span id="grading-rules-sum-current">${sum}</span>명)`;
