@@ -62,6 +62,13 @@
         return getCoursePublishKeys(course)[0];
     }
 
+    function hasCourseAuthority(course) {
+        if (!currentUser) return false;
+        if (currentUser.isMaster === true || currentUser.isMaster === 'true') return true;
+        if (course && course.professor && course.professor.email === currentUser.email) return true;
+        return false;
+    }
+
     // ── DOM References ──
     const modeSection    = document.getElementById('mode-section');
     const adminSection   = document.getElementById('admin-section');
@@ -898,6 +905,7 @@
         const courseEntry = withCourseId({
             ...adminConfig.course,
             evaluation: [...adminConfig.evaluation],
+            professor: currentUser ? { name: currentUser.name, email: currentUser.email } : null
         });
         if (existing >= 0) {
             const c = adminConfig.courses[existing];
@@ -4521,6 +4529,7 @@
         if (filterValue) {
             filtered = filtered.filter(c => `${c.year}-${c.semester}` === filterValue);
         }
+        filtered = filtered.filter(c => hasCourseAuthority(c));
 
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -4593,7 +4602,11 @@
 
             // 행 자체를 클릭해도 수정으로 이동하도록 지원
             item.onclick = () => {
-                selectWizardCourse(c.originalIndex);
+                if (hasCourseAuthority(c)) {
+                    selectWizardCourse(c.originalIndex);
+                } else {
+                    alert('⚠️ 본인이 등록한 과목만 편집할 수 있습니다.');
+                }
             };
 
             listUl.appendChild(item);
@@ -4603,6 +4616,11 @@
     function selectWizardCourse(index) {
         const c = adminConfig.courses[index];
         if (!c) return;
+
+        if (!hasCourseAuthority(c)) {
+            alert('⚠️ 본인이 등록한 과목만 편집할 수 있습니다.');
+            return;
+        }
 
         adminConfig.course = {
             year: c.year,
@@ -4662,6 +4680,11 @@
     function deleteWizardCourse(index) {
         const c = adminConfig.courses[index];
         if (!c) return;
+
+        if (!hasCourseAuthority(c)) {
+            alert('⚠️ 본인이 등록한 과목만 삭제할 수 있습니다.');
+            return;
+        }
 
         if (!confirm(`⚠️ 정말로 이 과목을 삭제하시겠습니까?\n\n「${c.year} ${c.semester} — ${c.name}」\n\n삭제 시 관련된 성적 데이터 및 공시 일정 설정도 복구할 수 없이 함께 제거됩니다.`)) {
             return;
