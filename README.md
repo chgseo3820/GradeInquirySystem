@@ -4,7 +4,7 @@
 
 ## 🌐 웹 조회
 
-GitHub Pages로 배포: **https://chgseo3820.github.io/ScoreQuery/**
+GitHub Pages로 배포: **https://chgseo3820.github.io/GradeInquirySystem/**
 
 - 학번 + 전화번호 뒷자리 4자리로 본인 성적 조회
 - 과목 선택 후 공시 기간 내 성적 조회

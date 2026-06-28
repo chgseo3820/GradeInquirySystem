@@ -31,7 +31,7 @@ git commit -m "Deploy to GitHub Pages (root-level)" >nul
 
 echo [4/4] GitHub 원격 저장소에 gh-pages 브랜치 강제 푸시...
 echo 원격 origin 주소를 매핑하고 강제 업로드합니다.
-git remote add origin https://github.com/chgseo3820/ScoreQuery.git
+git remote add origin https://github.com/chgseo3820/GradeInquirySystem.git
 git push -f origin gh-pages
 
 cd ..
@@ -50,5 +50,5 @@ echo     • 변경: gh-pages (폴더: / (root))
 echo  4. Save 버튼을 클릭하여 저장합니다.
 echo.
 echo  설정이 완료되면 주소에서 /docs/가 완전히 사라진 아래 주소로 즉시 서비스됩니다:
-echo  👉 https://chgseo3820.github.io/ScoreQuery/
+echo  👉 https://chgseo3820.github.io/GradeInquirySystem/
 echo ========================================================

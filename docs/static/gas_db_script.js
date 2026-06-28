@@ -266,7 +266,7 @@ function notifyMasterOfRegistration(newUser) {
                "- 연락처: " + newUser.phone + "\n" +
                "- 신청 일시: " + new Date().toLocaleString() + "\n\n" +
                "관리자 대시보드에 로그인하여 가입 승인 여부를 검토해 주시기 바랍니다.\n" +
-               "- 관리자 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+               "- 관리자 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n" +
                "감사합니다.";
                
     MailApp.sendEmail(masterEmail, subject, body);
@@ -333,7 +333,7 @@ function handleSetStatus(sheet, auth, email, status) {
         body: userName + " 교수님 안녕하십니까,\n\n" +
               "성적 조회 및 관리 시스템(ScoreQuery)의 교수 회원가입 신청이 성공적으로 승인 완료되었음을 알려드립니다.\n\n" +
               "이제 등록하신 교수 이메일(" + email + ")과 설정하신 비밀번호로 로그인하여 시스템에 진입하실 수 있습니다.\n\n" +
-              "- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+              "- 시스템 접속 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n" +
               "감사합니다.\n" +
               "마스터 서창갑 드림"
       });
@@ -541,7 +541,7 @@ function handleRequestPwReset(sheet, email) {
       "■ 유효 시간: " + RESET_TOKEN_TTL_MIN + "분\n\n" +
       "만약 본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.\n" +
       "(이미 발급된 이전 코드는 폐기되었습니다.)\n\n" +
-      "- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+      "- 시스템 접속 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n" +
       "감사합니다.\n" +
       "ScoreQuery 관리자";
     MailApp.sendEmail(user.email, subject, body);
@@ -613,7 +613,7 @@ function handleConfirmPwReset(sheet, email, code, newPwHash) {
         (user.name || "회원") + "님 안녕하십니까,\n\n" +
         "ScoreQuery 계정의 비밀번호가 방금 재설정되었습니다.\n" +
         "본인이 요청한 작업이 아니라면 즉시 마스터 계정(armour@tu.ac.kr)으로 알려주십시오.\n\n" +
-        "- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n" +
+        "- 시스템 접속 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n" +
         "감사합니다.\n" +
         "ScoreQuery 관리자"
     });

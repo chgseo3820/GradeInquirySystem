@@ -1548,41 +1548,88 @@
         const { professor, course, evaluation } = adminConfig;
 
         // 헤더 행
-        const baseHeaders = ['학번', '이름', '학년', '학과', '분반', '전화번호', '상대평가제외사유'];
+        const baseHeaders = ['분반', '소속', '학년', '학번', '성명', '전화번호'];
         const evalHeaders = evaluation.map(e => `${e.label}(${e.ratio}%)`);
-        const headers = [...baseHeaders, ...evalHeaders, '특별점수', '성적', '석차', '평점', '결석', '비고'];
-
-        // 상대평가제외사유 유효값 안내 (데이터 유효성 검사용)
-        // 외국인, 만학도, 장애인 중 선택 또는 비워둠
+        const headers = [...baseHeaders, ...evalHeaders, '가산점', '가산메모', '특별점수', '특별점수메모', '합계', '석차'];
 
         // 샘플 데이터 행 (3개 예시)
-        const sampleRows = [
-            ['20240001', '홍길동', 3, '경영학과', 1, '010-1234-5678', '', ...evaluation.map(() => ''), '', '', '', '', 0, ''],
-            ['20240002', '김영희', 2, '경영학과', 1, '010-2345-6789', '외국인', ...evaluation.map(() => ''), '', '', '', '', 0, ''],
-            ['20240003', '이철수', 4, '경영학과', 2, '010-3456-7890', '', ...evaluation.map(() => ''), '', '', '', '', 0, ''],
+        // 100점 초과 케이스 포함 (예: 홍길동은 가산점/특별점수 포함 100점 초과)
+        const sampleRowsRaw = [
+            { classNum: 1, dept: '경영학과', year: 3, studentId: '20240001', name: '홍길동', phone: '010-1234-5678', scoreFactor: 0.95, extra: 5, extraMemo: '경진대회 수상', special: 3, specialMemo: '우수 참여자' },
+            { classNum: 1, dept: '경영학과', year: 2, studentId: '20240002', name: '김영희', phone: '010-2345-6789', scoreFactor: 0.8, extra: 0, extraMemo: '', special: 0, specialMemo: '' },
+            { classNum: 2, dept: '경영학과', year: 4, studentId: '20240003', name: '이철수', phone: '010-3456-7890', scoreFactor: 0.9, extra: 2, extraMemo: '질문왕', special: 0, specialMemo: '' },
         ];
+
+        const evalScoresList = sampleRowsRaw.map(row => {
+            return evaluation.map(e => {
+                const maxScore = e.ratio > 0 ? e.ratio : 100;
+                return Math.round(maxScore * row.scoreFactor * 10) / 10;
+            });
+        });
+
+        const sums = sampleRowsRaw.map((row, idx) => {
+            const evalSum = evalScoresList[idx].reduce((a, b) => a + b, 0);
+            return parseFloat((evalSum + row.extra + row.special).toFixed(2));
+        });
+
+        const ranks = sampleRowsRaw.map((row, idx) => {
+            const cn = row.classNum;
+            const mySum = sums[idx];
+            const sameClassSums = sums.filter((_, i) => sampleRowsRaw[i].classNum === cn);
+            const rank = sameClassSums.filter(s => s > mySum).length + 1;
+            return rank;
+        });
+
+        const sampleRows = sampleRowsRaw.map((row, idx) => {
+            const scores = evalScoresList[idx];
+            const sum = sums[idx];
+            const rank = ranks[idx];
+            return [
+                row.classNum,
+                row.dept,
+                row.year,
+                row.studentId,
+                row.name,
+                row.phone,
+                ...scores,
+                row.extra || '',
+                row.extraMemo,
+                row.special || '',
+                row.specialMemo,
+                sum,
+                rank
+            ];
+        });
 
         // 워크시트 생성
         const wsData = [headers, ...sampleRows];
         const ws = XLSX.utils.aoa_to_sheet(wsData);
 
         // 열 너비 설정
-        const colWidths = headers.map(h => ({ wch: Math.max(h.length * 2, 12) }));
+        const colWidths = headers.map(h => {
+            if (h === '학번' || h === '전화번호') return { wch: 16 };
+            if (h === '성명' || h === '이름' || h === '소속' || h === '학과' || h === '특별점수메모' || h === '가산메모') return { wch: 12 };
+            return { wch: 10 };
+        });
         ws['!cols'] = colWidths;
 
-        // 상대평가제외사유 열에 셀 코멘트 추가 (마우스 올릴 때만 표시)
-        const exclColIdx = baseHeaders.indexOf('상대평가제외사유');
-        const exclCellRef = XLSX.utils.encode_cell({ r: 0, c: exclColIdx });
-        if (!ws[exclCellRef].c) ws[exclCellRef].c = [];
-        ws[exclCellRef].c.push({ a: 'ScoreQuery', t: '외국인, 만학도, 장애인 중 선택\n해당 없으면 비워두세요', s: { sz: 10 } });
-        ws[exclCellRef].c.hidden = true;
+        // 가산점 열 셀 코멘트 추가
+        const extraColIdx = headers.indexOf('가산점');
+        if (extraColIdx >= 0) {
+            const extraCellRef = XLSX.utils.encode_cell({ r: 0, c: extraColIdx });
+            if (!ws[extraCellRef].c) ws[extraCellRef].c = [];
+            ws[extraCellRef].c.push({ a: 'ScoreQuery', t: '가산 항목이 있을 때 부여\n총합에 포함됩니다', s: { sz: 10 } });
+            ws[extraCellRef].c.hidden = true;
+        }
 
-        // 특별점수 열에 셀 코멘트 추가 (마우스 올릴 때만 표시)
+        // 특별점수 열 셀 코멘트 추가
         const specColIdx = headers.indexOf('특별점수');
-        const specCellRef = XLSX.utils.encode_cell({ r: 0, c: specColIdx });
-        if (!ws[specCellRef].c) ws[specCellRef].c = [];
-        ws[specCellRef].c.push({ a: 'ScoreQuery', t: '100점 초과 가능\n총점 산출에 포함됩니다', s: { sz: 10 } });
-        ws[specCellRef].c.hidden = true;
+        if (specColIdx >= 0) {
+            const specCellRef = XLSX.utils.encode_cell({ r: 0, c: specColIdx });
+            if (!ws[specCellRef].c) ws[specCellRef].c = [];
+            ws[specCellRef].c.push({ a: 'ScoreQuery', t: '특별 사유가 있을 때 부여\n총합에 포함됩니다 (100점 초과 가능)', s: { sz: 10 } });
+            ws[specCellRef].c.hidden = true;
+        }
 
         // 워크북 생성
         const wb = XLSX.utils.book_new();
@@ -2102,9 +2149,14 @@
 
     // ── 표준 포맷 판별 ──
     function isStandardFormat(headers, mapping) {
-        // 기본 필수 헤더 존재 여부
-        const required = ['학번', '이름', '전화번호'];
-        const hasBase = required.every(r => headers.some(h => h.includes(r)));
+        // 기본 필수 헤더 존재 여부 (이름/성명 유연성 대응)
+        const required = ['학번', ['이름', '성명'], '전화번호'];
+        const hasBase = required.every(r => {
+            if (Array.isArray(r)) {
+                return r.some(sub => headers.some(h => h.includes(sub)));
+            }
+            return headers.some(h => h.includes(r));
+        });
         if (!hasBase) return false;
 
         // 평가 항목 컬럼이 "라벨(비율%)" 형태인지 확인
@@ -2118,8 +2170,8 @@
             return !!found;
         });
 
-        // 뒷부분 헤더도 확인
-        const hasTail = ['총점', '성적', '석차', '학점', '평점'].some(t => headers.some(h => h.includes(t)));
+        // 뒷부분 헤더도 확인 (합계 추가)
+        const hasTail = ['합계', '총점', '성적', '석차', '학점', '평점'].some(t => headers.some(h => h.includes(t)));
 
         return allEvalMatch && hasTail;
     }
@@ -2251,19 +2303,22 @@
         };
 
         const mapping = {
-            studentId: find(['학번']),
-            name:      find(['이름', '성명']),
-            year:      find(['학년']),
-            dept:      find(['학과', '학부', '전공']),
-            classNum:  find(['분반', '반']),
-            phone:     find(['전화', '핸드폰', '연락처', '휴대폰']),
-            exclude:   find(['상대평가제외사유', '상대평가제외', '제외']),
-            special:   find(['특별점수', '특별']),
-            total:     find(['총점', '성적', '합계']),
-            rank:      find(['석차', '순위', '등수'], ['결석']),
-            grade:     find(['학점', '평점', '등급']),
-            absences:  find(['결석', '결석횟수', '결석차시']),
-            remark:    find(['비고', '메모', '참고']),
+            studentId:   find(['학번']),
+            name:        find(['성명', '이름']),
+            year:        find(['학년']),
+            dept:        find(['소속', '학과', '학부', '전공']),
+            classNum:    find(['분반', '반']),
+            phone:       find(['전화', '핸드폰', '연락처', '휴대폰']),
+            exclude:     find(['상대평가제외사유', '상대평가제외', '제외']),
+            extra:       find(['가산점']),
+            extraMemo:   find(['가산메모']),
+            special:     find(['특별점수', '특별']),
+            specialMemo: find(['특별점수메모', '특별메모']),
+            total:       find(['합계', '총점', '성적']),
+            rank:        find(['석차', '순위', '등수'], ['결석']),
+            grade:       find(['학점', '평점', '등급']),
+            absences:    find(['결석', '결석횟수', '결석차시']),
+            remark:      find(['비고', '메모', '참고']),
             eval: {},  // 평가항목별 매핑
             evalDetected: [], // 자동 감지된 평가 항목
         };
@@ -2330,11 +2385,11 @@
             critical++;
         }
 
-        // 필수: 이름
+        // 필수: 성명
         if (mapping.name) {
-            checks.push({ status: 'pass', label: '이름', detail: '확인됨' });
+            checks.push({ status: 'pass', label: '성명(이름)', detail: '확인됨' });
         } else {
-            checks.push({ status: 'fail', label: '이름', detail: '열을 찾을 수 없음' });
+            checks.push({ status: 'fail', label: '성명(이름)', detail: '열을 찾을 수 없음' });
             critical++;
         }
 
@@ -2350,9 +2405,9 @@
             critical++;
         }
 
-        // 선택: 학과, 분반, 학년
+        // 선택: 소속 학과, 분반, 학년
         ['dept', 'classNum', 'year'].forEach(key => {
-            const labels = { dept: '학과', classNum: '분반', year: '학년' };
+            const labels = { dept: '소속(학과)', classNum: '분반', year: '학년' };
             if (mapping[key]) {
                 checks.push({ status: 'pass', label: labels[key], detail: '확인됨' });
             } else {
@@ -2372,9 +2427,19 @@
             }
         });
 
-        // 성적, 석차, 평점
-        ['total', 'rank', 'grade', 'absences', 'remark'].forEach(key => {
-            const labels = { total: '성적', rank: '석차', grade: '평점', absences: '결석', remark: '비고' };
+        // 성적, 석차, 평점 및 가산점, 특별점수 등
+        ['total', 'rank', 'grade', 'absences', 'remark', 'extra', 'extraMemo', 'special', 'specialMemo'].forEach(key => {
+            const labels = {
+                total: '합계(성적)',
+                rank: '석차',
+                grade: '평점',
+                absences: '결석',
+                remark: '비고',
+                extra: '가산점',
+                extraMemo: '가산메모',
+                special: '특별점수',
+                specialMemo: '특별점수메모'
+            };
             if (mapping[key]) {
                 checks.push({ status: 'pass', label: labels[key], detail: '확인됨' });
             } else {
@@ -2495,40 +2560,65 @@
             : mapping.evalDetected;
 
         // 샘플 규격 헤더
-        const baseHeaders = ['학번', '이름', '학년', '학과', '분반', '전화번호', '상대평가제외사유'];
+        const baseHeaders = ['분반', '소속', '학년', '학번', '성명', '전화번호'];
         const evalHeaders = effectiveEval.map(e => {
             const r = e.ratio > 0 ? `(${e.ratio}%)` : '';
             return `${e.label}${r}`;
         });
-        const tailHeaders = ['특별점수', '성적', '석차', '평점', '결석', '비고'];
+        const tailHeaders = ['가산점', '가산메모', '특별점수', '특별점수메모', '합계', '석차'];
         const sampleHeaders = [...baseHeaders, ...evalHeaders, ...tailHeaders];
 
         // 각 행을 샘플 규격으로 변환
         const convertedRows = rows.map(row => {
             const out = {};
-            out['학번'] = row[mapping.studentId] ?? '';
-            out['이름'] = row[mapping.name] ?? '';
+            out['분반'] = mapping.classNum ? (parseInt(row[mapping.classNum]) || 1) : 1;
+            out['소속'] = mapping.dept ? (row[mapping.dept] ?? '') : '';
             out['학년'] = mapping.year ? (row[mapping.year] ?? '') : '';
-            out['학과'] = mapping.dept ? (row[mapping.dept] ?? '') : '';
-            out['분반'] = mapping.classNum ? (row[mapping.classNum] ?? 1) : 1;
+            out['학번'] = row[mapping.studentId] ?? '';
+            out['성명'] = row[mapping.name] ?? '';
             out['전화번호'] = mapping.phone ? (row[mapping.phone] ?? '') : '';
-            out['상대평가제외사유'] = mapping.exclude ? (row[mapping.exclude] ?? '') : '';
 
-            // 평가 항목
+            // 평가 항목 합산 계산
+            let evalSum = 0;
             effectiveEval.forEach((e, idx) => {
                 const headerName = evalHeaders[idx];
                 const col = mapping.eval[e.id];
+                const scoreVal = col ? parseFloat(row[col]) : 0;
                 out[headerName] = col ? (row[col] ?? '') : '';
+                evalSum += isNaN(scoreVal) ? 0 : scoreVal;
             });
 
+            const extraVal = mapping.extra ? parseFloat(row[mapping.extra]) : 0;
+            const extraScore = isNaN(extraVal) ? 0 : extraVal;
+            out['가산점'] = mapping.extra ? (row[mapping.extra] ?? '') : '';
+            out['가산메모'] = mapping.extraMemo ? (row[mapping.extraMemo] ?? '') : '';
+
+            const specialVal = mapping.special ? parseFloat(row[mapping.special]) : 0;
+            const specialScore = isNaN(specialVal) ? 0 : specialVal;
             out['특별점수'] = mapping.special ? (row[mapping.special] ?? '') : '';
-            out['성적'] = mapping.total ? (row[mapping.total] ?? '') : '';
-            out['석차'] = mapping.rank ? (row[mapping.rank] ?? '') : '';
-            out['평점'] = mapping.grade ? (row[mapping.grade] ?? '') : '';
-            out['결석'] = mapping.absences ? (row[mapping.absences] ?? 0) : 0;
-            out['비고'] = mapping.remark ? (row[mapping.remark] ?? '') : '';
+            out['특별점수메모'] = mapping.specialMemo ? (row[mapping.specialMemo] ?? '') : '';
+
+            // 합계 = 평가항목합계 + 가산점 + 특별점수 (100점 초과 가능)
+            out['합계'] = parseFloat((evalSum + extraScore + specialScore).toFixed(2));
+            out['석차'] = ''; // 분반별 석차 계산에서 채워짐
 
             return out;
+        });
+
+        // 분반별 석차 계산
+        const classGroups = {};
+        convertedRows.forEach(row => {
+            const cn = row['분반'];
+            if (!classGroups[cn]) classGroups[cn] = [];
+            classGroups[cn].push(row);
+        });
+
+        Object.values(classGroups).forEach(group => {
+            group.forEach(row => {
+                const mySum = row['합계'];
+                const rank = group.filter(r => r['합계'] > mySum).length + 1;
+                row['석차'] = rank;
+            });
         });
 
         return { headers: sampleHeaders, rows: convertedRows };
@@ -2558,7 +2648,7 @@
         // 열 너비 설정
         ws['!cols'] = pendingConvertedHeaders.map(h => {
             if (h === '학번' || h === '전화번호') return { wch: 16 };
-            if (h === '이름' || h === '학과') return { wch: 12 };
+            if (h === '성명' || h === '이름' || h === '소속' || h === '학과' || h === '특별점수메모' || h === '가산메모') return { wch: 12 };
             return { wch: 10 };
         });
 
@@ -2740,7 +2830,10 @@
             const grade = mapping.grade ? String(row[mapping.grade] || '').trim() : '';
             const rank = mapping.rank ? String(row[mapping.rank] || '').trim() : '';
             const totalScore = mapping.total ? (parseFloat(row[mapping.total]) || 0) : 0;
+            const extraScore = mapping.extra ? (parseFloat(row[mapping.extra]) || 0) : 0;
+            const extraMemo = mapping.extraMemo ? String(row[mapping.extraMemo] || '').trim() : '';
             const specialScore = mapping.special ? (parseFloat(row[mapping.special]) || 0) : 0;
+            const specialMemo = mapping.specialMemo ? String(row[mapping.specialMemo] || '').trim() : '';
 
             if (!studentId || !phoneLast4) {
                 skippedRows++;
@@ -2774,8 +2867,8 @@
                 }
             });
 
-            // 계산 총점 = 평가항목 가중합산 + 특별점수
-            const calculatedSum = Object.values(scores).reduce((sum, v) => sum + (v || 0), 0) + specialScore;
+            // 계산 총점 = 평가항목 가중합산 + 가산점 + 특별점수 (100점 초과 가능)
+            const calculatedSum = Object.values(scores).reduce((sum, v) => sum + (v || 0), 0) + extraScore + specialScore;
             const finalCalculatedTotal = parseFloat(calculatedSum.toFixed(2));
 
             // 엑셀 총점 우선 사용
@@ -2806,7 +2899,8 @@
                         const sVal = scores[`${evalItem.id}_score`];
                         cRowRef[headerName] = sVal !== null ? sVal : '';
                     });
-                    cRowRef['성적'] = finalTotal;
+                    if ('합계' in cRowRef) cRowRef['합계'] = finalTotal;
+                    if ('석차' in cRowRef) cRowRef['석차'] = rank;
                 }
             }
             rowIndex++;
@@ -2817,7 +2911,10 @@
                 student_id_masked: idMasked,
                 name_masked: nameMasked,
                 ...scores,
+                extra_score: extraScore || null,
+                extra_memo: extraMemo,
                 special_score: specialScore || null,
+                special_memo: specialMemo,
                 total_score: finalTotal,
                 rank: rank || `-`,
                 grade: grade || '-',
@@ -2844,6 +2941,23 @@
             classCounts[cn] = entries.length;
             classAvg[cn] = {};
             classMax[cn] = {};
+
+            // 만약 석차가 누락된 학생이 있다면, 분반별로 합계(total_score) 기준 석차를 계산하여 보완합니다.
+            const needsRankCalculation = entries.some(e => !e.rank || e.rank === '-' || e.rank === '');
+            if (needsRankCalculation) {
+                entries.forEach((e) => {
+                    if (!e.rank || e.rank === '-' || e.rank === '') {
+                        const myTotal = e.total_score || 0;
+                        const computedRank = entries.filter(other => (other.total_score || 0) > myTotal).length + 1;
+                        e.rank = String(computedRank);
+                        
+                        // cRow가 있으면 동기화
+                        if (e._cRow) {
+                            e._cRow['석차'] = computedRank;
+                        }
+                    }
+                });
+            }
 
             // 자동 석차 및 학점 부여 로직 제거 -> 엑셀 원본 값 그대로 연동
             entries.forEach((e) => {
@@ -4211,7 +4325,7 @@
                 `${targetUser.name} 교수님 안녕하십니까,\n\n` +
                 `성적 조회 및 관리 시스템(ScoreQuery)의 교수 회원가입 신청이 성공적으로 승인 완료되었음을 알려드립니다.\n\n` +
                 `이제 아래의 시스템 주소로 접속하신 뒤, 등록하신 교수 이메일(${targetUser.email})과 설정하신 비밀번호로 로그인하여 시스템에 진입하실 수 있습니다.\n\n` +
-                `- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n` +
+                `- 시스템 접속 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n` +
                 `감사합니다.\n` +
                 `마스터 서창갑 드림\n`;
 
@@ -4264,7 +4378,7 @@
                 `- 이메일 ID: ${targetUser.email}\n` +
                 `- 임시 비밀번호: ${tempPw}\n\n` +
                 `아래의 시스템 주소로 접속하신 후, 임시 비밀번호로 로그인하여 안전한 비밀번호로 변경하여 사용해 주시기 바랍니다.\n\n` +
-                `- 시스템 접속 주소: https://chgseo3820.github.io/ScoreQuery/\n\n` +
+                `- 시스템 접속 주소: https://chgseo3820.github.io/GradeInquirySystem/\n\n` +
                 `감사합니다.\n` +
                 `마스터 서창갑 드림\n`;
 

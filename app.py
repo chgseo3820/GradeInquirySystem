@@ -157,16 +157,20 @@ def load_excel():
     headers = [str(cell).strip() if cell is not None else "" for cell in first_row]
 
     col = {
-        "department": find_header_idx(headers, ["학과", "학부", "전공"]),
-        "class_num":  find_header_idx(headers, ["분반", "반"]),
-        "student_id": find_header_idx(headers, ["학번"]),
-        "name":       find_header_idx(headers, ["이름", "성명"]),
-        "phone":      find_header_idx(headers, ["전화", "핸드폰", "연락처", "휴대폰"]),
-        "total":      find_header_idx(headers, ["총점", "성적"]),
-        "rank":       find_header_idx(headers, ["석차", "순위", "등수"], exclude_keywords=["결석"]),
-        "grade":      find_header_idx(headers, ["학점", "평점", "등급"]),
-        "absences":   find_header_idx(headers, ["결석", "결석횟수", "결석차시"]),
-        "remark":     find_header_idx(headers, ["비고"]),
+        "department":   find_header_idx(headers, ["소속", "학과", "학부", "전공"]),
+        "class_num":    find_header_idx(headers, ["분반", "반"]),
+        "student_id":   find_header_idx(headers, ["학번"]),
+        "name":         find_header_idx(headers, ["성명", "이름"]),
+        "phone":        find_header_idx(headers, ["전화", "핸드폰", "연락처", "휴대폰"]),
+        "extra":        find_header_idx(headers, ["가산점"]),
+        "extra_memo":   find_header_idx(headers, ["가산메모"]),
+        "special":      find_header_idx(headers, ["특별점수", "특별"]),
+        "special_memo": find_header_idx(headers, ["특별점수메모", "특별메모"]),
+        "total":        find_header_idx(headers, ["합계", "총점", "성적"]),
+        "rank":         find_header_idx(headers, ["석차", "순위", "등수"], exclude_keywords=["결석"]),
+        "grade":        find_header_idx(headers, ["학점", "평점", "등급"]),
+        "absences":     find_header_idx(headers, ["결석", "결석횟수", "결석차시"]),
+        "remark":       find_header_idx(headers, ["비고"]),
     }
 
     # 동적 평가항목 추출
@@ -236,6 +240,10 @@ def load_excel():
         total = safe_float(get_val("total"))
         rank_val = get_val("rank")
         grade = get_val("grade") or ""
+        extra = safe_float(get_val("extra"))
+        extra_memo = get_val("extra_memo") or ""
+        special = safe_float(get_val("special"))
+        special_memo = get_val("special_memo") or ""
 
         absences_val = get_val("absences", 0)
         try:
@@ -247,12 +255,31 @@ def load_excel():
         dept = get_val("department") or ""
         student_name = get_val("name") or ""
 
+        # 평가항목 합계 구하기
+        eval_sum = 0.0
+        for ev in dynamic_evals:
+            val = None
+            if ev["col_idx"] < len(row):
+                val = safe_float(row[ev["col_idx"]])
+            if val is not None:
+                eval_sum += val
+
+        calculated_total = eval_sum + (extra or 0.0) + (special or 0.0)
+        calculated_total = round(calculated_total, 2)
+
+        if total is None or total == 0.0:
+            total = calculated_total
+
         student = {
             "department": dept,
             "class_num": class_num,
             "student_id": sid,
             "name": student_name,
             "phone_last4": phone_last4,
+            "extra_score": extra,
+            "extra_memo": extra_memo,
+            "special_score": special,
+            "special_memo": special_memo,
             "total_score": total,
             "rank": rank_val,
             "grade": grade,
@@ -273,14 +300,33 @@ def load_excel():
             class_scores[class_num] = { "total_score": [] }
             for ev in dynamic_evals:
                 class_scores[class_num][ev["id"] + "_score"] = []
+            class_scores[class_num]["extra_score"] = []
+            class_scores[class_num]["special_score"] = []
 
         # 결시자(비고에 '결시' 또는 '미응시' 포함)는 평균/최고점수 집계에서 제외
         is_absent = "결시" in (student["remark"] or "") or "미응시" in (student["remark"] or "")
         if not is_absent:
             for field in class_scores[class_num]:
-                val = student[field]
+                val = student.get(field)
                 if val is not None:
                     class_scores[class_num][field].append(val)
+
+    # 분반별 석차 자동 계산 (만약 석차가 비어있다면)
+    class_groups_app = {}
+    for sid, st in new_students.items():
+        cn = st["class_num"]
+        if cn not in class_groups_app:
+            class_groups_app[cn] = []
+        class_groups_app[cn].append(st)
+
+    for cn, group in class_groups_app.items():
+        for st in group:
+            if st["rank"] is None or str(st["rank"]).strip() in ["", "-", "None"]:
+                my_total = st["total_score"] or 0.0
+                rank = sum(1 for other in group if (other["total_score"] or 0.0) > my_total) + 1
+                st["rank"] = str(rank)
+            else:
+                st["rank"] = str(st["rank"]).strip()
 
     # 분반별 평균·최고 계산
     new_class_averages, new_class_maxes, new_class_counts = {}, {}, {}

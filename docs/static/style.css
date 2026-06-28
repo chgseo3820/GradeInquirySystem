@@ -31,13 +31,14 @@
     --accent-rose: #f43f5e;
     --accent-indigo: #6366f1;
 
-    /* Gradients */
     --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
     --gradient-quiz: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
     --gradient-attendance: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
     --gradient-midterm: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
     --gradient-final: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
     --gradient-total: linear-gradient(135deg, #3b82f6 0%, #06b6d4 50%, #10b981 100%);
+    --gradient-extra: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --gradient-special: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 
     /* Border */
     --border-glass: rgba(255, 255, 255, 0.08);
@@ -546,6 +547,8 @@ select.form-input option {
 .score-card.card-midterm::before { background: var(--gradient-midterm); }
 .score-card.card-final::before { background: var(--gradient-final); }
 .score-card.card-total::before { background: var(--gradient-total); }
+.score-card.card-extra::before { background: var(--gradient-extra); }
+.score-card.card-special::before { background: var(--gradient-special); }
 
 .card-icon {
     font-size: 1.25rem;
@@ -605,6 +608,12 @@ select.form-input option {
 
 .card-total .card-score { color: #93c5fd; }
 .card-total .progress-fill { background: var(--gradient-total); }
+
+.card-extra .card-score { color: #34d399; }
+.card-extra .progress-fill { background: var(--gradient-extra); }
+
+.card-special .card-score { color: #fbbf24; }
+.card-special .progress-fill { background: var(--gradient-special); }
 
 .card-avg-hint {
     font-size: 0.6875rem;

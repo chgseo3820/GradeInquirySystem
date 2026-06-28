@@ -23,7 +23,7 @@
 
     // ── Score Card Config ──
     // ── Dynamic Score Fields Resolver ──
-    function getScoreFields(gradeData) {
+    function getScoreFields(gradeData, student) {
         if (gradeData && gradeData.evaluation && gradeData.evaluation.length > 0) {
             const fields = gradeData.evaluation.map(e => ({
                 key: `${e.id}_score`,
@@ -32,18 +32,31 @@
                 max: e.ratio || 100,
                 cssClass: `card-${e.id}`
             }));
+            if (student && student.extra_score !== undefined && student.extra_score !== null && student.extra_score !== 0) {
+                fields.push({ key: 'extra_score', label: '가산점', icon: '➕', max: '추가', cssClass: 'card-extra' });
+            }
+            if (student && student.special_score !== undefined && student.special_score !== null && student.special_score !== 0) {
+                fields.push({ key: 'special_score', label: '특별점수', icon: '⭐', max: '추가', cssClass: 'card-special' });
+            }
             fields.push({ key: 'total_score', label: '성적', icon: '🏆', max: 100, cssClass: 'card-total' });
             return fields;
         }
 
         // Fallback for legacy format
-        return [
+        const fields = [
             { key: 'quiz_score', label: '퀴즈', icon: '🎯', max: 30, cssClass: 'card-quiz' },
             { key: 'attendance_score', label: '출석', icon: '📋', max: 30, cssClass: 'card-attendance' },
             { key: 'midterm_score', label: '중간고사', icon: '📝', max: 20, cssClass: 'card-midterm' },
             { key: 'final_score', label: '기말고사', icon: '📖', max: 20, cssClass: 'card-final' },
-            { key: 'total_score', label: '성적', icon: '🏆', max: 100, cssClass: 'card-total' },
         ];
+        if (student && student.extra_score !== undefined && student.extra_score !== null && student.extra_score !== 0) {
+            fields.push({ key: 'extra_score', label: '가산점', icon: '➕', max: '추가', cssClass: 'card-extra' });
+        }
+        if (student && student.special_score !== undefined && student.special_score !== null && student.special_score !== 0) {
+            fields.push({ key: 'special_score', label: '특별점수', icon: '⭐', max: '추가', cssClass: 'card-special' });
+        }
+        fields.push({ key: 'total_score', label: '성적', icon: '🏆', max: 100, cssClass: 'card-total' });
+        return fields;
     }
 
     // ── State ──
@@ -642,19 +655,25 @@
         const container = document.getElementById('score-cards');
         container.innerHTML = '';
 
-        getScoreFields(gradeData).forEach((field) => {
+        getScoreFields(gradeData, student).forEach((field) => {
             let value = student[field.key];
             let avg = classAvg[field.key];
 
-            // 근거가 되는 점수는 소수점 첫째 자리에서 반올림 (정수형 변환)
-            if (field.key !== 'total_score') {
+            // 근거가 되는 점수는 소수점 첫째 자리에서 반올림 (정수형 변환, 단 total_score/extra_score/special_score는 제외)
+            if (field.key !== 'total_score' && field.key !== 'extra_score' && field.key !== 'special_score') {
                 if (value !== null && value !== undefined) value = Math.round(value);
                 if (avg !== null && avg !== undefined) avg = Math.round(avg);
             }
 
             const displayVal = value !== null && value !== undefined ? value : '-';
-            const pct = value !== null && value !== undefined ? (value / field.max) * 100 : 0;
-            const avgDisplay = avg !== null && avg !== undefined ? avg : '-';
+            const maxText = typeof field.max === 'number' ? `${field.max}점 만점` : '추가 반영';
+            const pct = (typeof field.max === 'number' && value !== null && value !== undefined)
+                ? Math.min((value / field.max) * 100, 100)
+                : (value !== null && value !== undefined ? 100 : 0);
+
+            const avgDisplay = avg !== null && avg !== undefined 
+                ? (field.key === 'total_score' || field.key === 'extra_score' || field.key === 'special_score' ? avg.toFixed(1) : Math.round(avg)) 
+                : '-';
 
             const card = document.createElement('div');
             card.className = `score-card ${field.cssClass}`;
@@ -664,15 +683,22 @@
                 const diff = value - avg;
                 const sign = diff >= 0 ? '+' : '';
                 const color = diff >= 0 ? '#4ade80' : '#fbbf24';
-                const diffText = field.key === 'total_score' ? diff.toFixed(1) : Math.round(diff).toString();
+                const diffText = (field.key === 'total_score' || field.key === 'extra_score' || field.key === 'special_score') ? diff.toFixed(1) : Math.round(diff).toString();
                 diffHtml = `<div class="card-diff-hint" style="color:${color}; font-weight:700;">${sign}${diffText}</div>`;
+            }
+
+            let memoHtml = '';
+            if (field.key === 'extra_score' && student.extra_memo) {
+                memoHtml = `<div class="card-memo-hint" style="font-size: 0.6875rem; color: #34d399; margin-top: var(--space-xs); font-style: italic; line-height:1.4;">📝 ${student.extra_memo}</div>`;
+            } else if (field.key === 'special_score' && student.special_memo) {
+                memoHtml = `<div class="card-memo-hint" style="font-size: 0.6875rem; color: #fbbf24; margin-top: var(--space-xs); font-style: italic; line-height:1.4;">📝 ${student.special_memo}</div>`;
             }
 
             card.innerHTML = `
                 <div class="card-icon">${field.icon}</div>
                 <div class="card-label">${field.label}</div>
                 <div class="card-score">${displayVal}</div>
-                <div class="card-max">${field.max}점 만점</div>
+                <div class="card-max">${maxText}</div>
                 <div class="progress-bar">
                     <div class="progress-fill" data-width="${pct}"></div>
                 </div>
@@ -681,6 +707,7 @@
                     분반 평균 ${avgDisplay}
                 </div>
                 ${diffHtml}
+                ${memoHtml}
             `;
             container.appendChild(card);
         });
@@ -707,18 +734,17 @@
         const avgData = [];
         const maxData = [];
 
-        getScoreFields(gradeData).forEach((field) => {
+        getScoreFields(gradeData, student).forEach((field) => {
+            if (field.key === 'total_score' || field.key === 'extra_score' || field.key === 'special_score') return;
             labels.push(field.label);
             let myVal = student[field.key];
             let avgVal = classAvg[field.key];
             let maxVal = classMax[field.key];
 
             // 근거가 되는 점수는 소수점 첫째 자리에서 반올림
-            if (field.key !== 'total_score') {
-                if (myVal !== null && myVal !== undefined) myVal = Math.round(myVal);
-                if (avgVal !== null && avgVal !== undefined) avgVal = Math.round(avgVal);
-                if (maxVal !== null && maxVal !== undefined) maxVal = Math.round(maxVal);
-            }
+            if (myVal !== null && myVal !== undefined) myVal = Math.round(myVal);
+            if (avgVal !== null && avgVal !== undefined) avgVal = Math.round(avgVal);
+            if (maxVal !== null && maxVal !== undefined) maxVal = Math.round(maxVal);
 
             myData.push(myVal !== null && myVal !== undefined ? Math.max(0, Math.min(Math.round((myVal / field.max) * 100), 100)) : 0);
             avgData.push(avgVal !== null && avgVal !== undefined ? Math.max(0, Math.min(Math.round((avgVal / field.max) * 100), 100)) : 0);

@@ -113,16 +113,20 @@ def build():
         return None
 
     col = {
-        "department": find_idx(["학과", "학부", "전공"]),
-        "class_num": find_idx(["분반", "반"]),
-        "student_id": find_idx(["학번"]),
-        "name": find_idx(["이름", "성명"]),
-        "phone": find_idx(["전화", "핸드폰", "연락처", "휴대폰"]),
-        "total": find_idx(["총점", "성적"]),
-        "rank": find_idx(["석차", "순위", "등수"], exclude_keywords=["결석"]),
-        "grade": find_idx(["학점", "평점", "등급"]),
-        "absences": find_idx(["결석", "결석횟수", "결석차시"]),
-        "remark": find_idx(["비고"]),
+        "department":   find_idx(["소속", "학과", "학부", "전공"]),
+        "class_num":    find_idx(["분반", "반"]),
+        "student_id":   find_idx(["학번"]),
+        "name":         find_idx(["성명", "이름"]),
+        "phone":        find_idx(["전화", "핸드폰", "연락처", "휴대폰"]),
+        "extra":        find_idx(["가산점"]),
+        "extra_memo":   find_idx(["가산메모"]),
+        "special":      find_idx(["특별점수", "특별"]),
+        "special_memo": find_idx(["특별점수메모", "특별메모"]),
+        "total":        find_idx(["합계", "총점", "성적"]),
+        "rank":         find_idx(["석차", "순위", "등수"], exclude_keywords=["결석"]),
+        "grade":        find_idx(["학점", "평점", "등급"]),
+        "absences":     find_idx(["결석", "결석횟수", "결석차시"]),
+        "remark":       find_idx(["비고"]),
     }
 
     # 동적 평가항목 추출
@@ -192,6 +196,10 @@ def build():
         total = safe_float(get_val("total"))
         rank_val = get_val("rank")
         grade = get_val("grade") or ""
+        extra = safe_float(get_val("extra"))
+        extra_memo = get_val("extra_memo") or ""
+        special = safe_float(get_val("special"))
+        special_memo = get_val("special_memo") or ""
         
         absences_val = get_val("absences", 0)
         try:
@@ -203,11 +211,30 @@ def build():
         dept = get_val("department") or ""
         student_name = get_val("name") or ""
 
+        # 평가항목 합계 구하기
+        eval_sum = 0.0
+        for ev in dynamic_evals:
+            val = None
+            if ev["col_idx"] < len(row):
+                val = safe_float(row[ev["col_idx"]])
+            if val is not None:
+                eval_sum += val
+
+        calculated_total = eval_sum + (extra or 0.0) + (special or 0.0)
+        calculated_total = round(calculated_total, 2)
+
+        if total is None or total == 0.0:
+            total = calculated_total
+
         student_data = {
             "department": dept,
             "class_num": class_num,
             "student_id_masked": mask_student_id(sid),
             "name_masked": mask_name(student_name),
+            "extra_score": extra,
+            "extra_memo": extra_memo,
+            "special_score": special,
+            "special_memo": special_memo,
             "total_score": total,
             "rank": rank_val,
             "grade": grade,
@@ -231,25 +258,37 @@ def build():
             }
             for ev in dynamic_evals:
                 class_scores[class_num][ev["id"] + "_score"] = []
+            class_scores[class_num]["extra_score"] = []
+            class_scores[class_num]["special_score"] = []
                 
         class_scores[class_num]["count"] += 1
         
         # 결시자(비고에 '결시' 또는 '미응시' 포함)는 평균/최고점수 집계에서 제외
         is_absent = "결시" in remark or "미응시" in remark
         if not is_absent:
-            # 동적 평가항목 추가
-            fields_to_aggregate = ["total_score"] + [ev["id"] + "_score" for ev in dynamic_evals]
+            # 동적 평가항목 및 가산점/특별점수 추가
+            fields_to_aggregate = ["total_score"] + [ev["id"] + "_score" for ev in dynamic_evals] + ["extra_score", "special_score"]
             for field in fields_to_aggregate:
                 val = students[hash_key].get(field)
                 if val is not None:
                     class_scores[class_num][field].append(val)
 
-    # 석차 변환 제거 -> 엑셀 원본 값 그대로 사용
+    # 분반별 석차 자동 계산 (만약 석차가 비어있다면)
+    class_groups_py = {}
     for hk, st in students.items():
-        if st["rank"] is None or str(st["rank"]).strip() in ["", "-"]:
-            st["rank"] = "-"
-        else:
-            st["rank"] = str(st["rank"]).strip()
+        cn = st["class_num"]
+        if cn not in class_groups_py:
+            class_groups_py[cn] = []
+        class_groups_py[cn].append(st)
+
+    for cn, group in class_groups_py.items():
+        for st in group:
+            if st["rank"] is None or str(st["rank"]).strip() in ["", "-", "None"]:
+                my_total = st["total_score"] or 0.0
+                rank = sum(1 for other in group if (other["total_score"] or 0.0) > my_total) + 1
+                st["rank"] = str(rank)
+            else:
+                st["rank"] = str(st["rank"]).strip()
 
     # 분반별 평균·최고 계산
     class_averages = {}
