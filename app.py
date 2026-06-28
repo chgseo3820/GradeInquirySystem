@@ -274,10 +274,13 @@ def load_excel():
             for ev in dynamic_evals:
                 class_scores[class_num][ev["id"] + "_score"] = []
 
-        for field in class_scores[class_num]:
-            val = student[field]
-            if val is not None:
-                class_scores[class_num][field].append(val)
+        # 결시자(비고에 '결시' 또는 '미응시' 포함)는 평균/최고점수 집계에서 제외
+        is_absent = "결시" in (student["remark"] or "") or "미응시" in (student["remark"] or "")
+        if not is_absent:
+            for field in class_scores[class_num]:
+                val = student[field]
+                if val is not None:
+                    class_scores[class_num][field].append(val)
 
     # 분반별 평균·최고 계산
     new_class_averages, new_class_maxes, new_class_counts = {}, {}, {}
@@ -526,9 +529,9 @@ def get_score():
     mx = class_maxes.get(cn, {})
     count = class_counts.get(cn, 0)
 
-    # 석차 포맷
+    # 석차 포맷팅 제거 -> 엑셀 원본 값 그대로 사용
     rank_val = student["rank"]
-    rank_str = f"{rank_val} / {count}" if rank_val is not None else "- / -"
+    rank_str = str(rank_val) if rank_val is not None else "-"
 
     student_res = {
         "department": student["department"],

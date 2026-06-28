@@ -2863,7 +2863,14 @@
             });
 
             scoreKeys.forEach(key => {
-                const vals = entries.map(e => e[key]).filter(v => v !== null && v !== undefined);
+                const vals = entries
+                    .filter(e => {
+                        const remark = String(e.remark || '').trim();
+                        return !(remark.includes('결시') || remark.includes('미응시'));
+                    })
+                    .map(e => e[key])
+                    .filter(v => v !== null && v !== undefined);
+
                 if (vals.length > 0) {
                     classAvg[cn][key] = parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2));
                     classMax[cn][key] = Math.max(...vals);

@@ -234,22 +234,22 @@ def build():
                 
         class_scores[class_num]["count"] += 1
         
-        # 동적 평가항목 추가
-        fields_to_aggregate = ["total_score"] + [ev["id"] + "_score" for ev in dynamic_evals]
-        for field in fields_to_aggregate:
-            val = students[hash_key].get(field)
-            if val is not None:
-                class_scores[class_num][field].append(val)
+        # 결시자(비고에 '결시' 또는 '미응시' 포함)는 평균/최고점수 집계에서 제외
+        is_absent = "결시" in remark or "미응시" in remark
+        if not is_absent:
+            # 동적 평가항목 추가
+            fields_to_aggregate = ["total_score"] + [ev["id"] + "_score" for ev in dynamic_evals]
+            for field in fields_to_aggregate:
+                val = students[hash_key].get(field)
+                if val is not None:
+                    class_scores[class_num][field].append(val)
 
-    # 석차 → "석차 / 총원" 포맷으로 변환
+    # 석차 변환 제거 -> 엑셀 원본 값 그대로 사용
     for hk, st in students.items():
-        cn = st["class_num"]
-        count = class_scores[cn]["count"]
-        if st["rank"] is not None and str(st["rank"]).strip() not in ["", "-"]:
-            r_str = str(st["rank"]).split("/")[0].strip()
-            st["rank"] = f"{r_str} / {count}"
+        if st["rank"] is None or str(st["rank"]).strip() in ["", "-"]:
+            st["rank"] = "-"
         else:
-            st["rank"] = "- / -"
+            st["rank"] = str(st["rank"]).strip()
 
     # 분반별 평균·최고 계산
     class_averages = {}
