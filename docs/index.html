@@ -1195,7 +1195,7 @@
         <div class="drawer-body" style="padding: 24px; overflow-y: auto; height: calc(100% - 70px); box-sizing: border-box;">
             <!-- 버전 선택 (요약 vs 상세) -->
             <div class="manual-version-select" style="display: flex; gap: 4px; justify-content: center; margin-bottom: 20px; background: rgba(15,23,42,0.4); padding: 4px; border-radius: 8px; border: 1px solid var(--border-glass);">
-                <button type="button" class="version-tab-btn prof-version-btn active" data-version="summary" style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.1); border: none; border-radius: 6px; color: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📄 요약 버전 (4단계 빠른 요약)</button>
+                <button type="button" class="version-tab-btn prof-version-btn active" data-version="summary" style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.1); border: none; border-radius: 6px; color: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📄 요약 버전 (6단계 빠른 요약)</button>
                 <button type="button" class="version-tab-btn prof-version-btn" data-version="detailed" style="flex: 1; padding: 8px 12px; background: transparent; border: none; border-radius: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📖 상세 버전 (전체 운영 가이드)</button>
             </div>
 
@@ -1203,19 +1203,25 @@
             <div class="manual-content-container" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); border-radius: 12px; padding: 24px; text-align: left; font-size: 14px; line-height: 1.6; color: var(--text-primary); min-height: 250px;">
                 <!-- 교수자 요약 매뉴얼 -->
                 <div id="manual-prof-summary" class="manual-page">
-                    <h4 style="color: #fbbf24; margin-top: 0; font-size: 16px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 6px;">👨‍🏫 교수자 요약 매뉴얼 (4단계 빠른 요약)</h4>
+                    <h4 style="color: #fbbf24; margin-top: 0; font-size: 16px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 6px;">👨‍🏫 교수자 요약 매뉴얼 (6단계 빠른 요약)</h4>
                     <ol style="padding-left: 20px; margin-bottom: 0;">
-                        <li style="margin-bottom: 20px;"><strong>1단계: 계정 등록 및 승인</strong><br>
-                            '교수 모드' 선택 후 회원가입 신청을 진행합니다. 최고관리자(마스터) 승인 시 이메일로 완료 알림이 발송되며 로그인이 가능해집니다.
+                        <li style="margin-bottom: 20px;"><strong>1단계: 과목 선택</strong><br>
+                            성적을 관리할 새로운 과목을 생성하거나 이전에 만든 과목을 선택합니다.
                         </li>
-                        <li style="margin-bottom: 20px;"><strong>2단계: 과목 및 평가 기준 설정</strong><br>
-                            강의 과목 정보(년도, 학기, 과목명)를 지정하고 평가 비중(합계 100%)을 정합니다. 아래 제공된 예시 칩(Chips)을 클릭하면 빠르게 요소를 구성할 수 있습니다.
+                        <li style="margin-bottom: 20px;"><strong>2단계: 과목 정보 및 학생 명단</strong><br>
+                            과목의 기본 정보(년도, 학기, 분반)를 설정하고 수강생 명단을 시스템에 등록합니다.
                         </li>
-                        <li style="margin-bottom: 20px;"><strong>3단계: Excel 양식 작성 및 업로드</strong><br>
-                            과목 맞춤형으로 자동 생성된 Excel 템플릿(.xlsx)을 다운로드하여 학생별 성적을 기입한 후 드래그앤드롭하여 브라우저 로컬 업로드를 완료합니다.
+                        <li style="margin-bottom: 20px;"><strong>3단계: 평가 기준 설정</strong><br>
+                            평가 항목 및 가중치(비율)를 설정하고, 맞춤형으로 생성된 전용 Excel 템플릿(.xlsx)을 다운로드합니다.
                         </li>
-                        <li style="margin-bottom: 20px;"><strong>4단계: 보안 패스코드 설정 및 공시</strong><br>
-                            학생 조회 시 사용할 6자리 보안 비밀번호와 공시 기한을 설정하고 '공시하기'를 실행하면 안전하게 암호화(AES-256-GCM)되어 배포가 완료됩니다.
+                        <li style="margin-bottom: 20px;"><strong>4단계: 성적 Excel 업로드 및 비밀번호 설정</strong><br>
+                            템플릿에 성적을 기입한 후 드래그앤드롭하여 업로드하고, 학생 공시용 접속 비밀번호 6자리를 설정합니다.
+                        </li>
+                        <li style="margin-bottom: 20px;"><strong>5단계: 학점 산출 파이프라인</strong><br>
+                            설정된 등급 비율/인원에 따라 자동으로 학점이 산출됩니다. 예외 처리(상대평가 제외, 수기 조정)를 거친 뒤 최종성적처리 엑셀을 확인합니다.
+                        </li>
+                        <li style="margin-bottom: 20px;"><strong>6단계: 공시 설정 및 배포</strong><br>
+                            학생들에게 성적을 조회할 수 있도록 공시 기간을 설정하고 배포를 완료합니다.
                         </li>
                     </ol>
                 </div>
@@ -1228,11 +1234,13 @@
                     <h5 style="color: #38bdf8; margin-top: 24px; margin-bottom: 10px; font-size: 14.5px; font-weight: 600;">1. 계정 가입 및 마스터 승인</h5>
                     <p style="margin-bottom: 12px; color: var(--text-secondary);">교수자 최초 접속 시 가입 신청서(이름, 이메일, 대학/학과, 패스워드, 연락처)를 전송하면 원격 구글 Sheets DB에 적재되며, 마스터 계정이 검토 후 승인을 처리하면 승인 완료 메일과 함께 즉시 대시보드 권한을 얻습니다.</p>
                     
-                    <h5 style="color: #38bdf8; margin-top: 24px; margin-bottom: 10px; font-size: 14.5px; font-weight: 600;">2. 4단계 설정 마법사 및 Excel 성적 입력</h5>
+                    <h5 style="color: #38bdf8; margin-top: 24px; margin-bottom: 10px; font-size: 14.5px; font-weight: 600;">2. 6단계 설정 마법사 및 학점 산출</h5>
                     <ul style="padding-left: 20px; color: var(--text-secondary); margin-bottom: 12px;">
-                        <li style="margin-bottom: 10px;"><strong>1~2단계 (교수 및 과목 정보)</strong>: 교수 개인 정보 및 강의 과목명(년도, 학기)을 설정합니다.</li>
-                        <li style="margin-bottom: 10px;"><strong>3단계 (평가 기준)</strong>: 평가 가중치 비율(합계 100%)을 지정합니다. (중간/기말, 출석 등 항목을 ❌로 삭제하고 ➕ 버튼 또는 퀵 Chips로 직접 자유롭게 추가 가능)</li>
-                        <li style="margin-bottom: 10px;"><strong>4단계 (템플릿 다운로드)</strong>: 설정된 평가 항목 컬럼에 맞춰 생성된 전용 Excel 템플릿(.xlsx)을 다운로드하여 로컬에서 세부 성적을 입력합니다.</li>
+                        <li style="margin-bottom: 10px;"><strong>1~2단계 (과목 정보)</strong>: 관리할 과목을 생성하고 학생 명단을 등록합니다.</li>
+                        <li style="margin-bottom: 10px;"><strong>3단계 (평가 기준)</strong>: 평가 가중치 비율을 지정하고 전용 Excel 템플릿을 다운로드합니다.</li>
+                        <li style="margin-bottom: 10px;"><strong>4단계 (성적 엑셀 업로드)</strong>: 성적이 기입된 파일을 로컬 브라우저 환경에서 업로드하고 열람용 암호를 지정합니다.</li>
+                        <li style="margin-bottom: 10px;"><strong>5단계 (학점 파이프라인)</strong>: 시스템이 설정된 등급 비율/인원에 맞춰 자동으로 성적 석차와 등급(A~F)을 부여합니다. 관리자는 여기서 최종 수정 및 예외처리를 진행할 수 있습니다.</li>
+                        <li style="margin-bottom: 10px;"><strong>6단계 (공시 및 배포)</strong>: 최종 성적 정보를 암호화(AES-256-GCM)하여 공시 기간과 함께 배포합니다.</li>
                     </ul>
 
                     <h5 style="color: #38bdf8; margin-top: 24px; margin-bottom: 10px; font-size: 14.5px; font-weight: 600;">3. 프라이버시 필터링 및 로컬 빌드</h5>
@@ -1270,7 +1278,7 @@
                             '학생 모드' 진입 후, 본인이 수강하여 성적을 확인하고자 하는 과목명을 선택합니다.
                         </li>
                         <li style="margin-bottom: 20px;"><strong>2단계: 3중 인증 정보 입력</strong><br>
-                            본인의 <strong>학번(8자리 이상)</strong>, <strong>휴대폰 번호 뒷자리(4자리)</strong> 및 담당 교수님께서 직접 공지(수업시간, LMS, 이메일, 문자 등)해 주신 <strong>6자리 접속 비밀번호</strong>를 기입합니다.
+                            본인의 <strong>학번</strong>, <strong>전화번호 뒷자리</strong> 및 담당 교수님께서 직접 공지(수업시간, LMS, 이메일, 문자 등)해 주신 <strong>6자리 접속 비밀번호</strong>를 기입합니다.
                         </li>
                         <li style="margin-bottom: 20px;"><strong>3단계: 성적 시각화 리포트 확인</strong><br>
                             인증에 성공하면 본인의 종합 성적 평점/석차 정보 카드와 평가 항목별 득점 비교 방사형(Radar) 레이더 차트가 포함된 성적표를 확인합니다.
@@ -1284,7 +1292,7 @@
                     <p style="margin-bottom: 20px;">학생 모드는 가입이나 추가적인 아이디 생성 등의 절차 없이, 보안 암호 연산 대조를 거쳐 개인 성취 정보 분석을 피드백해 주는 화면입니다.</p>
 
                     <h5 style="color: #38bdf8; margin-top: 24px; margin-bottom: 10px; font-size: 14.5px; font-weight: 600;">1. 과목명 선택 및 3중 보안 검증</h5>
-                    <p style="margin-bottom: 12px; color: var(--text-secondary);">수강 과목을 선택하면 학번, 전화번호 뒷자리 4자리 및 <strong>6자리 접속 비밀번호</strong> 입력 필드가 나타납니다. 접속 비밀번호는 다른 학생의 도용 및 무차별 대입을 완벽히 방어하기 위해 교수자가 개별 통보한 6자리 비밀코드입니다.</p>
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">수강 과목을 선택하면 학번, 전화번호 뒷자리 및 <strong>6자리 접속 비밀번호</strong> 입력 필드가 나타납니다. 접속 비밀번호는 다른 학생의 도용 및 무차별 대입을 완벽히 방어하기 위해 교수자가 개별 통보한 6자리 비밀코드입니다.</p>
                     <p style="margin-bottom: 12px; color: var(--text-secondary);">조회 시도 중 5회 비밀번호를 연속 실패하면 시스템 남용 방지를 위해 30초간 해당 학번의 조회가 일시 잠금됩니다. 모든 정보는 일방향 해시 키 변환(SHA-256)을 경유하여 확인되며 학생의 번호는 서버에 전혀 남지 않습니다.</p>
 
                     <h5 style="color: #38bdf8; margin-top: 24px; margin-bottom: 10px; font-size: 14.5px; font-weight: 600;">2. 레이더 차트 및 석차 종합 분석 확인</h5>
