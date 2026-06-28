@@ -2374,10 +2374,10 @@
         const valC = parseFloat(document.getElementById('grading-val-c').value) || 0;
         const valD = parseFloat(document.getElementById('grading-val-d').value) || 0;
 
-        const plusRatioA = parseFloat(document.getElementById('grading-plus-a').value) ?? 50;
-        const plusRatioB = parseFloat(document.getElementById('grading-plus-b').value) ?? 50;
-        const plusRatioC = parseFloat(document.getElementById('grading-plus-c').value) ?? 50;
-        const plusRatioD = parseFloat(document.getElementById('grading-plus-d').value) ?? 50;
+        const plusRatioA = parseFloat(document.getElementById('grading-plus-a').value) ?? 60;
+        const plusRatioB = parseFloat(document.getElementById('grading-plus-b').value) ?? 60;
+        const plusRatioC = parseFloat(document.getElementById('grading-plus-c').value) ?? 60;
+        const plusRatioD = parseFloat(document.getElementById('grading-plus-d').value) ?? 60;
 
         if (distType === 'ratio') {
             const sum = valA + valB + valC + valD;
