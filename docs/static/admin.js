@@ -1798,6 +1798,16 @@
     // ──────────────────────────────────────────────
     // Excel Download (SheetJS)
     // ──────────────────────────────────────────────
+    function safeFileNamePart(value, fallback) {
+        const text = String(value || fallback || '')
+            .trim()
+            .replace(/[\\/:*?"<>|]/g, '_')
+            .replace(/\s+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
+        return text || fallback || 'ScoreQuery';
+    }
+
     function downloadSampleExcel() {
         const { professor, course, evaluation } = adminConfig;
 
@@ -1882,8 +1892,14 @@
         const sheetName = `${course.year}-${course.semester}`;
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-        // 파일 다운로드 (강제 파일명: 년도-학기-과목명-교수명.xlsx)
-        const fileName = `${course.year}-${course.semester}-${course.name}-${professor.name}.xlsx`;
+        // 파일 다운로드 (강제 파일명: 년도_학기_과목명_성적산출_교수명.xlsx)
+        const fileName = [
+            safeFileNamePart(course.year, '년도'),
+            safeFileNamePart(course.semester, '학기'),
+            safeFileNamePart(course.name, '과목명'),
+            '성적산출',
+            safeFileNamePart(professor.name, '교수명')
+        ].join('_') + '.xlsx';
         XLSX.writeFile(wb, fileName);
     }
 
@@ -1925,6 +1941,126 @@
             console.error('Failed to compile data.json object:', e);
             return null;
         }
+    }
+
+    function getStoredCourseData(showAlert = false) {
+        const { course } = adminConfig;
+        if (!course || !course.name) {
+            if (showAlert) alert('과목 정보가 없어 다운로드할 수 없습니다.');
+            return null;
+        }
+
+        let rawData = null;
+        for (const key of getCourseDataKeys(course)) {
+            rawData = localStorage.getItem(key);
+            if (rawData) break;
+        }
+        if (!rawData) {
+            if (showAlert) alert('성적 데이터가 없습니다. 먼저 성적 파일을 업로드하고 최종 확정해 주세요.');
+            return null;
+        }
+
+        try {
+            return JSON.parse(rawData);
+        } catch (e) {
+            console.error('Failed to parse stored course data:', e);
+            if (showAlert) alert('저장된 성적 데이터를 읽을 수 없습니다.');
+            return null;
+        }
+    }
+
+    function formatExcelDateTime(value) {
+        if (!value) return '-';
+        try {
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return '-';
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        } catch (e) {
+            return '-';
+        }
+    }
+
+    function downloadFinalGradesExcel() {
+        const parsed = getStoredCourseData(true);
+        if (!parsed) return;
+
+        const course = parsed.course || adminConfig.course || {};
+        const professor = parsed.professor || adminConfig.professor || {};
+        const evaluation = parsed.evaluation || adminConfig.evaluation || [];
+        const students = Object.entries(parsed.students || {}).map(([key, st]) => ({ key, ...st }));
+        if (students.length === 0) {
+            alert('다운로드할 수강생 성적 데이터가 없습니다.');
+            return;
+        }
+
+        students.sort((a, b) => {
+            const classDiff = compareStudentValues(a.class_num || 0, b.class_num || 0);
+            if (classDiff !== 0) return classDiff;
+            const rankDiff = compareStudentValues(
+                parseFloat(String(a.rank || '').replace(/[^0-9.]/g, '')) || Number.MAX_SAFE_INTEGER,
+                parseFloat(String(b.rank || '').replace(/[^0-9.]/g, '')) || Number.MAX_SAFE_INTEGER
+            );
+            if (rankDiff !== 0) return rankDiff;
+            return compareStudentValues(a.student_id_masked || a.key, b.student_id_masked || b.key);
+        });
+
+        const evalHeaders = evaluation.map(item => item.ratio !== undefined && item.ratio !== null
+            ? `${item.label}(${item.ratio}%)`
+            : item.label);
+        const headers = [
+            '분반', '소속', '학번(마스킹)', '성명(마스킹)',
+            ...evalHeaders,
+            '가산점', '가산점 메모', '특별점수', '특별점수 메모',
+            '최종 총점', '석차', '최종 학점',
+            '상대평가 제외', '상대평가 제외 사유', 'F 사유', '비고'
+        ];
+        const aoa = [headers];
+
+        students.forEach(st => {
+            const evalScores = evaluation.map(item => {
+                const val = st[`${item.id}_score`];
+                return val === null || val === undefined ? '' : val;
+            });
+            aoa.push([
+                st.class_num || '',
+                st.department || '',
+                st.student_id_masked || '',
+                st.name_masked || '',
+                ...evalScores,
+                st.extra_score || '',
+                st.extra_memo || '',
+                st.special_score || '',
+                st.special_memo || '',
+                st.total_score ?? '',
+                st.rank || '',
+                st.grade || '',
+                st.is_relative_excluded ? 'Y' : 'N',
+                getRelativeExclusionReason(st) || '',
+                st.f_reason || '',
+                st.remark || ''
+            ]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = headers.map(h => {
+            if (h.includes('학번')) return { wch: 16 };
+            if (h.includes('사유') || h.includes('메모') || h === '비고') return { wch: 20 };
+            if (h.includes('성명') || h === '소속') return { wch: 14 };
+            return { wch: 11 };
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '최종성적');
+
+        const filename = [
+            safeFileNamePart(course.year, '년도'),
+            safeFileNamePart(course.semester, '학기'),
+            safeFileNamePart(course.name, '과목명'),
+            '최종성적처리',
+            safeFileNamePart(professor.name, '교수명')
+        ].join('_') + '.xlsx';
+        XLSX.writeFile(wb, filename);
     }
 
     function bytesToBase64(bytes) {
@@ -2262,6 +2398,139 @@
         return adminConfig.evaluation;
     }
 
+    function getPendingStudentList() {
+        if (!pendingUploadData || !pendingUploadData.students) return [];
+        return Object.entries(pendingUploadData.students).map(([key, st]) => {
+            st._studentKey = key;
+            return st;
+        });
+    }
+
+    function getClassNumsFromStudents(studentList) {
+        return Array.from(new Set(studentList.map(st => st.class_num).filter(v => v !== undefined && v !== null && v !== '')))
+            .sort((a, b) => {
+                const na = Number(a);
+                const nb = Number(b);
+                if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+                return String(a).localeCompare(String(b), 'ko');
+            });
+    }
+
+    function getGradeSortValue(grade) {
+        const order = { 'A+': 90, 'A0': 80, 'B+': 70, 'B0': 60, 'C+': 50, 'C0': 40, 'D+': 30, 'D0': 20, F: 10 };
+        return order[String(grade || '').toUpperCase()] || 0;
+    }
+
+    function getStudentSortValue(st, sortKey) {
+        if (sortKey && sortKey.startsWith('eval:')) {
+            return st[`${sortKey.slice(5)}_score`];
+        }
+        switch (sortKey) {
+            case 'student_id':
+                return st._studentKey || st.student_id_masked || '';
+            case 'name':
+                return st.name_masked || '';
+            case 'class_num':
+                return st.class_num || 0;
+            case 'extra_score':
+                return st.extra_score || 0;
+            case 'special_score':
+                return st.special_score || 0;
+            case 'total_score':
+                return st.total_score || 0;
+            case 'rank':
+                return parseFloat(String(st.rank || '').replace(/[^0-9.]/g, '')) || Number.MAX_SAFE_INTEGER;
+            case 'grade':
+                return getGradeSortValue(st.grade);
+            case 'relative_excluded':
+                return st.is_relative_excluded ? 1 : 0;
+            case 'remark':
+                return getRelativeExclusionReason(st) || st.f_reason || st.remark || '';
+            default:
+                return st[sortKey];
+        }
+    }
+
+    function compareStudentValues(a, b) {
+        const aNum = typeof a === 'number' ? a : parseFloat(a);
+        const bNum = typeof b === 'number' ? b : parseFloat(b);
+        const aNumeric = !Number.isNaN(aNum) && String(a).trim() !== '';
+        const bNumeric = !Number.isNaN(bNum) && String(b).trim() !== '';
+        if (aNumeric && bNumeric) return aNum - bNum;
+        return String(a ?? '').localeCompare(String(b ?? ''), 'ko', { numeric: true, sensitivity: 'base' });
+    }
+
+    function getVisibleSortedStudents(tableKey, studentList) {
+        const state = gradingTableState[tableKey];
+        const classNumSet = new Set(getClassNumsFromStudents(studentList).map(c => String(c)));
+        if (state.classFilter !== 'all' && !classNumSet.has(String(state.classFilter))) {
+            state.classFilter = 'all';
+        }
+        const filtered = state.classFilter === 'all'
+            ? [...studentList]
+            : studentList.filter(st => String(st.class_num || 1) === String(state.classFilter));
+
+        filtered.sort((a, b) => {
+            const result = compareStudentValues(getStudentSortValue(a, state.sortKey), getStudentSortValue(b, state.sortKey));
+            if (result !== 0) return state.direction === 'asc' ? result : -result;
+            return compareStudentValues(getStudentSortValue(a, 'student_id'), getStudentSortValue(b, 'student_id'));
+        });
+        return filtered;
+    }
+
+    function sortIndicator(tableKey, sortKey) {
+        const state = gradingTableState[tableKey];
+        if (state.sortKey !== sortKey) return '↕';
+        return state.direction === 'asc' ? '▲' : '▼';
+    }
+
+    function sortableTh(tableKey, label, sortKey, width = '') {
+        return `<th data-grading-sort-key="${sortKey}" style="padding:10px; border-bottom:1px solid var(--border-glass); cursor:pointer; user-select:none; ${width}" title="클릭하여 정렬">${label} <span style="font-size:10px; color:var(--text-muted);">${sortIndicator(tableKey, sortKey)}</span></th>`;
+    }
+
+    function classFilterTh(tableKey, studentList) {
+        const classNums = getClassNumsFromStudents(studentList);
+        if (classNums.length <= 1) {
+            return `<th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>`;
+        }
+
+        const selected = gradingTableState[tableKey].classFilter;
+        const options = [
+            `<option value="all" ${selected === 'all' ? 'selected' : ''}>전체</option>`,
+            ...classNums.map(c => `<option value="${c}" ${String(selected) === String(c) ? 'selected' : ''}>${c}분반</option>`)
+        ].join('');
+        return `
+            <th style="padding:8px; border-bottom:1px solid var(--border-glass);">
+                <select data-grading-class-filter="${tableKey}" style="padding:4px 6px; border-radius:4px; background:rgba(15,23,42,0.9); color:white; border:1px solid var(--border-glass); outline:none; font-size:11px;">
+                    ${options}
+                </select>
+            </th>
+        `;
+    }
+
+    function bindGradingTableControls(wrap, tableKey, renderFn) {
+        wrap.querySelectorAll('th[data-grading-sort-key]').forEach(th => {
+            th.addEventListener('click', () => {
+                const sortKey = th.dataset.gradingSortKey;
+                const state = gradingTableState[tableKey];
+                if (state.sortKey === sortKey) {
+                    state.direction = state.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    state.sortKey = sortKey;
+                    state.direction = sortKey === 'rank' || sortKey === 'student_id' || sortKey === 'name' ? 'asc' : 'desc';
+                }
+                renderFn();
+            });
+        });
+
+        wrap.querySelectorAll('select[data-grading-class-filter]').forEach(select => {
+            select.addEventListener('change', () => {
+                gradingTableState[tableKey].classFilter = select.value;
+                renderFn();
+            });
+        });
+    }
+
     function renderCustomFRules() {
         const container = document.getElementById('f-rule-custom-items-container');
         if (!container) return;
@@ -2366,26 +2635,26 @@
         const wrap = document.getElementById('raw-scores-table-wrap');
         if (!wrap || !pendingUploadData) return;
 
-        const studentList = Object.values(pendingUploadData.students);
-        studentList.sort((a, b) => b.total_score - a.total_score);
+        const allStudents = getPendingStudentList();
+        const studentList = getVisibleSortedStudents('step5a', allStudents);
 
         const activeEvalItems = getActiveEvalItems();
 
         let ths = `
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">학번</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">성명</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>
+            ${sortableTh('step5a', '학번', 'student_id')}
+            ${sortableTh('step5a', '성명', 'name')}
+            ${classFilterTh('step5a', allStudents)}
         `;
 
         activeEvalItems.forEach(item => {
-            ths += `<th style="padding:10px; border-bottom:1px solid var(--border-glass);">${item.label}</th>`;
+            ths += sortableTh('step5a', item.label, `eval:${item.id}`);
         });
 
         ths += `
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass); color:#34d399;">가산점</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass); color:#fbbf24;">특별점수</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass); font-weight:700;">합계</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">석차</th>
+            ${sortableTh('step5a', '<span style="color:#34d399;">가산점</span>', 'extra_score')}
+            ${sortableTh('step5a', '<span style="color:#fbbf24;">특별점수</span>', 'special_score')}
+            ${sortableTh('step5a', '<span style="font-weight:700;">합계</span>', 'total_score')}
+            ${sortableTh('step5a', '석차', 'rank')}
         `;
 
         let trs = '';
@@ -2422,6 +2691,7 @@
                 </tbody>
             </table>
         `;
+        bindGradingTableControls(wrap, 'step5a', renderStep5A);
     }
 
     function renderTieBreakerOptions() {
@@ -2915,17 +3185,17 @@
         const wrap = document.getElementById('override-scores-table-wrap');
         if (!wrap || !pendingUploadData) return;
 
-        const studentList = Object.values(pendingUploadData.students);
-        studentList.sort((a, b) => b.total_score - a.total_score);
+        const allStudents = getPendingStudentList();
+        const studentList = getVisibleSortedStudents('step5c', allStudents);
 
         let ths = `
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">학번</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">성명</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass); width: 12%;">총점 조정</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass); width: 18%;">최종 학점</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass); width: 15%;">상대평가 제외</th>
-            <th style="padding:10px; border-bottom:1px solid var(--border-glass);">사유/비고</th>
+            ${sortableTh('step5c', '학번', 'student_id')}
+            ${sortableTh('step5c', '성명', 'name')}
+            ${classFilterTh('step5c', allStudents)}
+            ${sortableTh('step5c', '총점 조정', 'total_score', 'width:12%;')}
+            ${sortableTh('step5c', '최종 학점', 'grade', 'width:18%;')}
+            ${sortableTh('step5c', '상대평가 제외', 'relative_excluded', 'width:15%;')}
+            ${sortableTh('step5c', '사유/비고', 'remark')}
         `;
 
         let trs = '';
@@ -2950,7 +3220,7 @@
             const cursorStyle = isAttendanceF ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;';
 
             trs += `
-                <tr style="border-bottom:1px solid var(--border-glass);" data-student-id="${st.student_id_masked}" data-name="${st.name_masked}">
+                <tr style="border-bottom:1px solid var(--border-glass);" data-student-key="${st._studentKey}" data-student-id="${st.student_id_masked}" data-name="${st.name_masked}">
                     <td style="padding:10px; text-align:center; color:white;">${st.student_id_masked}</td>
                     <td style="padding:10px; text-align:center;">${st.name_masked}</td>
                     <td style="padding:10px; text-align:center;">${st.class_num}반</td>
@@ -2982,16 +3252,11 @@
                 </tbody>
             </table>
         `;
+        bindGradingTableControls(wrap, 'step5c', renderStep5C);
 
         wrap.querySelectorAll('tr[data-student-id]').forEach(tr => {
-            const sid = tr.dataset.studentId;
-            const name = tr.dataset.name;
-
-            const stKey = Object.keys(pendingUploadData.students).find(key => 
-                pendingUploadData.students[key].student_id_masked === sid &&
-                pendingUploadData.students[key].name_masked === name
-            );
-            const st = pendingUploadData.students[stKey];
+            const st = pendingUploadData.students[tr.dataset.studentKey];
+            if (!st) return;
 
             tr.querySelector('.override-score-input').addEventListener('input', function() {
                 const val = parseFloat(this.value);
@@ -2999,6 +3264,9 @@
                     st.total_score = val;
                     updateGradingStats();
                 }
+            });
+            tr.querySelector('.override-score-input').addEventListener('change', function() {
+                if (gradingTableState.step5c.sortKey === 'total_score') renderStep5C();
             });
 
             tr.querySelector('.override-grade-select').addEventListener('change', function() {
@@ -3011,19 +3279,23 @@
                     st.f_reason = null;
                 }
                 updateGradingStats();
+                if (gradingTableState.step5c.sortKey === 'grade') renderStep5C();
             });
 
             tr.querySelector('.override-exclude-checkbox').addEventListener('change', function() {
                 st.is_relative_excluded = this.checked;
                 updateGradingStats();
+                if (gradingTableState.step5c.sortKey === 'relative_excluded' || gradingTableState.step5c.sortKey === 'remark') {
+                    renderStep5C();
+                }
             });
         });
 
         // 분반 필터 드롭다운 채우기 및 바인딩
         const classSelect = document.getElementById('grading-stats-class-select');
         if (classSelect) {
-            const classNums = Array.from(new Set(studentList.map(st => st.class_num).filter(Boolean))).sort((a, b) => a - b);
-            const prevValue = classSelect.value || 'all';
+            const classNums = getClassNumsFromStudents(allStudents);
+            const prevValue = gradingTableState.step5c.classFilter || classSelect.value || 'all';
             classSelect.innerHTML = '<option value="all">전체 분반</option>';
             classNums.forEach(cNum => {
                 const opt = document.createElement('option');
@@ -3040,7 +3312,8 @@
             const newClassSelect = classSelect.cloneNode(true);
             classSelect.parentNode.replaceChild(newClassSelect, classSelect);
             newClassSelect.addEventListener('change', () => {
-                updateGradingStats();
+                gradingTableState.step5c.classFilter = newClassSelect.value;
+                renderStep5C();
             });
         }
 
@@ -4300,6 +4573,10 @@
         if (btnViewStatsDetail) {
             btnViewStatsDetail.addEventListener('click', openStatsDetailModal);
         }
+        const btnViewStatsDownload = document.getElementById('btn-view-stats-download');
+        if (btnViewStatsDownload) {
+            btnViewStatsDownload.addEventListener('click', downloadStatsExcel);
+        }
 
         // 상세 모달 닫기
         const btnStatsModalClose = document.getElementById('btn-stats-modal-close');
@@ -4337,6 +4614,10 @@
 
         // Complete actions
         document.getElementById('btn-download-excel').addEventListener('click', downloadSampleExcel);
+        const btnDownloadFinalGrades = document.getElementById('btn-download-final-grades');
+        if (btnDownloadFinalGrades) {
+            btnDownloadFinalGrades.addEventListener('click', downloadFinalGradesExcel);
+        }
         document.getElementById('btn-go-home').addEventListener('click', showModeSelection);
 
         // Step 4 navigation buttons
@@ -6560,6 +6841,10 @@
         if (btnDetail) {
             btnDetail.style.display = 'inline-flex';
         }
+        const btnDownload = document.getElementById('btn-view-stats-download');
+        if (btnDownload) {
+            btnDownload.style.display = 'inline-flex';
+        }
     }
 
     function renderViewStats() {
@@ -6567,6 +6852,10 @@
         const textEl = document.getElementById('course-view-stats-text');
         const fillEl = document.getElementById('course-view-stats-fill');
         if (!widget || !textEl || !fillEl) return;
+        const btnDetail = document.getElementById('btn-view-stats-detail');
+        const btnDownload = document.getElementById('btn-view-stats-download');
+        if (btnDetail) btnDetail.style.display = 'none';
+        if (btnDownload) btnDownload.style.display = 'none';
 
         const { course } = adminConfig;
         if (!course || !course.name) {
@@ -6627,9 +6916,11 @@
             fillEl.style.width = `${percent}%`;
 
             // 자세히 보기 버튼 표시 처리
-            const btnDetail = document.getElementById('btn-view-stats-detail');
             if (btnDetail) {
                 btnDetail.style.display = 'inline-flex';
+            }
+            if (btnDownload) {
+                btnDownload.style.display = 'inline-flex';
             }
 
         } catch (e) {
@@ -6892,9 +7183,81 @@
         }
     }
 
+    function writeViewStatsWorkbook(course, studentsList, sourceLabel) {
+        const sortedList = [...studentsList].sort((a, b) => String(a.sid || '').localeCompare(String(b.sid || ''), 'ko', { numeric: true }));
+        let filteredList = sortedList;
+        let filterLabel = '전체';
+        if (currentStatsFilter === 'viewed') {
+            filteredList = sortedList.filter(s => s.isViewed);
+            filterLabel = '열람함';
+        } else if (currentStatsFilter === 'unviewed') {
+            filteredList = sortedList.filter(s => !s.isViewed);
+            filterLabel = '미열람';
+        }
+
+        if (filteredList.length === 0) {
+            alert(`${filterLabel} 상태에 해당하는 수강생이 없습니다.`);
+            return;
+        }
+
+        const headers = ['번호', '학과', '분반', '이름(마스킹)', '학번(마스킹)', '열람여부', '열람일시', '집계기준'];
+        const aoa = [headers];
+        filteredList.forEach((s, idx) => {
+            aoa.push([
+                idx + 1,
+                s.department || '-',
+                s.classNum || '-',
+                s.name,
+                s.sid,
+                s.isViewed ? '열람함' : '미열람',
+                s.isViewed ? formatExcelDateTime(s.viewDate) : '-',
+                sourceLabel
+            ]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [
+            { wch: 8 }, { wch: 16 }, { wch: 8 }, { wch: 16 },
+            { wch: 16 }, { wch: 10 }, { wch: 20 }, { wch: 14 }
+        ];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '열람현황');
+
+        const filename = [
+            safeFileNamePart(course.year, '년도'),
+            safeFileNamePart(course.semester, '학기'),
+            safeFileNamePart(course.name, '과목명'),
+            '열람현황',
+            filterLabel,
+            sourceLabel
+        ].join('_') + '.xlsx';
+        XLSX.writeFile(wb, filename);
+    }
+
     function downloadStatsExcel() {
         const { course } = adminConfig;
         if (!course || !course.name) return;
+
+        try {
+            const cached = sessionStorage.getItem(`scorequery_server_view_stats_${getCourseId(course)}`);
+            if (cached) {
+                const stats = JSON.parse(cached);
+                if (stats && stats.success && Array.isArray(stats.students)) {
+                    const serverRows = stats.students.map(s => ({
+                        name: s.name_masked || '이*름',
+                        sid: s.student_id_masked || '학*번',
+                        department: s.department || '-',
+                        classNum: s.class_num || '-',
+                        isViewed: !!s.is_viewed,
+                        viewDate: s.view_date || null
+                    }));
+                    writeViewStatsWorkbook(stats.course || course, serverRows, '서버조회로그');
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[ScoreQuery] Failed to use cached server view stats for download:', e);
+        }
 
         let rawData = null;
         for (const key of getCourseDataKeys(course)) {
@@ -6954,53 +7317,7 @@
                 });
             });
 
-            studentsList.sort((a, b) => a.sid.localeCompare(b.sid));
-
-            let filteredList = studentsList;
-            let filterLabel = '전체';
-            if (currentStatsFilter === 'viewed') {
-                filteredList = studentsList.filter(s => s.isViewed);
-                filterLabel = '열람함';
-            } else if (currentStatsFilter === 'unviewed') {
-                filteredList = studentsList.filter(s => !s.isViewed);
-                filterLabel = '미열람';
-            }
-
-            if (filteredList.length === 0) {
-                alert(`${filterLabel} 상태에 해당하는 수강생이 없습니다.`);
-                return;
-            }
-
-            const headers = ['번호', '학과', '분반', '이름(마스킹)', '학번(마스킹)', '열람여부', '열람일시'];
-            const aoa = [headers];
-
-            filteredList.forEach((s, idx) => {
-                let dateStr = '-';
-                if (s.isViewed && s.viewDate) {
-                    try {
-                        const d = new Date(s.viewDate);
-                        const pad = (n) => String(n).padStart(2, '0');
-                        dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                    } catch (err) {}
-                }
-
-                aoa.push([
-                    idx + 1,
-                    s.department || '-',
-                    s.classNum || '-',
-                    s.name,
-                    s.sid,
-                    s.isViewed ? '열람함' : '미열람',
-                    dateStr
-                ]);
-            });
-
-            const ws = XLSX.utils.aoa_to_sheet(aoa);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '열람현황');
-
-            const filename = `${course.year}_${course.semester}_${course.name}_열람현황_${filterLabel}.xlsx`;
-            XLSX.writeFile(wb, filename);
+            writeViewStatsWorkbook(course, studentsList, '브라우저로컬기록');
 
         } catch (err) {
             console.error('Error generating Excel stats file:', err);

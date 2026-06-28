@@ -1097,9 +1097,14 @@
                             <div id="course-view-stats-widget" class="stats-widget-card" style="display:none; margin: 16px 0; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-md); text-align: left;">
                                 <div class="stats-widget-header">
                                     <span style="font-weight: 600; font-size: 13px; color: #38bdf8; display: flex; align-items: center; gap: 8px;">📊 수강생 성적 열람 현황</span>
-                                    <button type="button" id="btn-view-stats-detail" class="stats-detail-link-btn">
-                                        🔍 자세히 보기
-                                    </button>
+                                    <div style="display:flex; gap:8px; align-items:center;">
+                                        <button type="button" id="btn-view-stats-download" class="stats-detail-link-btn">
+                                            📥 Excel 다운로드
+                                        </button>
+                                        <button type="button" id="btn-view-stats-detail" class="stats-detail-link-btn">
+                                            🔍 자세히 보기
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="course-view-stats-text" style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
                                     불러오는 중...
@@ -1134,6 +1139,9 @@
                                         <div class="publish-actions" style="margin-top: 20px;">
                                             <button class="pipe-btn active" id="btn-publish" style="padding:10px 24px;">📢 공시하기</button>
                                             <button class="pipe-btn" id="btn-unpublish" style="padding:10px 24px;opacity:0.6;cursor:pointer;">🚫 공시 취소</button>
+                                        </div>
+                                        <div class="publish-actions" style="margin-top: 10px;">
+                                            <button type="button" class="pipe-btn" id="btn-download-final-grades" style="padding:10px 24px;">📥 최종 성적 처리 파일 다운로드</button>
                                         </div>
                                     </div>
                                 </div>
