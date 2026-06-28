@@ -2829,8 +2829,8 @@
                     noticeEl.style.borderColor = 'rgba(56, 189, 248, 0.25)';
                     noticeEl.style.background = 'rgba(56, 189, 248, 0.08)';
                     noticeEl.innerHTML = `
-                        ℹ️ <strong>기존 데이터 유지 중</strong>: 본 과목은 성적 데이터와 접속 비밀번호가 이미 등록되어 있습니다. 변경사항이 없는 경우 바로 다음 단계로 이동하실 수 있습니다.<br>
-                        <span style="color:#38bdf8; font-weight:600;">⚠️ 수정(변경)을 원하실 경우에만 새로운 엑셀 파일 업로드 또는 비밀번호 설정을 새로 진행해 주십시오.</span>
+                        ℹ️ <strong>기존 업로드 데이터 확인</strong>: 이미 등록된 성적 데이터가 있습니다. 하단의 미리보기를 확인해 주세요.<br>
+                        <span style="color:#38bdf8; font-weight:600;">⚠️ 내용을 수정하시려면 새로운 엑셀 파일을 다시 업로드해 주세요. 변경사항이 없으면 바로 다음 단계로 이동할 수 있습니다.</span>
                     `;
                 }
 
@@ -2838,6 +2838,32 @@
                 if (nextBtn) {
                     nextBtn.style.display = '';
                     nextBtn.removeAttribute('disabled');
+                }
+                
+                // 기존 데이터 미리보기 렌더링
+                if (parsed && parsed.students) {
+                    const studentsArray = Object.values(parsed.students);
+                    if (studentsArray.length > 0) {
+                        const headers = Object.keys(studentsArray[0]);
+                        if (typeof renderPreviewTable === 'function') {
+                            renderPreviewTable(studentsArray, headers);
+                        }
+                        const pipelineArea = document.getElementById('pipeline-area');
+                        const previewToolbar = document.getElementById('preview-toolbar');
+                        const previewTable = document.getElementById('upload-preview-table');
+                        const pipelineSteps = document.getElementById('pipeline-steps');
+                        const convertedFilename = document.getElementById('converted-filename');
+                        
+                        if (pipelineArea) pipelineArea.style.display = 'block';
+                        if (previewToolbar) previewToolbar.style.display = 'flex';
+                        if (previewTable) previewTable.style.display = 'block';
+                        
+                        if (convertedFilename) {
+                            convertedFilename.innerHTML = `<strong>기존 업로드 데이터 (${studentsArray.length}명)</strong>`;
+                            convertedFilename.style.display = 'block';
+                        }
+                        if (pipelineSteps) pipelineSteps.style.display = 'none';
+                    }
                 }
             } catch (e) {
                 console.error(e);
