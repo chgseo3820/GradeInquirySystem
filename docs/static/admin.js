@@ -243,8 +243,8 @@
     }
 
     function clearProfessorSession() {
-        sessionStorage.removeItem(PROFESSOR_SESSION_KEY);
-        sessionStorage.removeItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY);
+        localStorage.removeItem(PROFESSOR_SESSION_KEY);
+        localStorage.removeItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY);
         professorSessionLastTouch = 0;
         if (professorSessionTimeoutId) {
             clearTimeout(professorSessionTimeoutId);
@@ -253,13 +253,13 @@
     }
 
     function getProfessorSessionLastActivity() {
-        const raw = sessionStorage.getItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY);
+        const raw = localStorage.getItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY);
         const value = raw ? Number(raw) : 0;
         return Number.isFinite(value) && value > 0 ? value : 0;
     }
 
     function isProfessorSessionExpired() {
-        if (!sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return false;
+        if (!localStorage.getItem(PROFESSOR_SESSION_KEY)) return false;
         const lastActivity = getProfessorSessionLastActivity();
         if (!lastActivity) return false;
         return Date.now() - lastActivity > PROFESSOR_SESSION_TIMEOUT_MS;
@@ -278,7 +278,7 @@
     }
 
     function touchProfessorSessionActivity(force = false) {
-        if (!currentUser && !sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return;
+        if (!currentUser && !localStorage.getItem(PROFESSOR_SESSION_KEY)) return;
         if (isProfessorSessionExpired()) {
             handleLogoutAction({ reason: 'timeout' });
             return;
@@ -286,7 +286,7 @@
         const now = Date.now();
         if (!force && now - professorSessionLastTouch < 30000) return;
         professorSessionLastTouch = now;
-        sessionStorage.setItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY, String(now));
+        localStorage.setItem(PROFESSOR_SESSION_LAST_ACTIVITY_KEY, String(now));
         scheduleProfessorSessionTimeout();
     }
 
@@ -295,7 +295,7 @@
             clearTimeout(professorSessionTimeoutId);
             professorSessionTimeoutId = null;
         }
-        if (!sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return;
+        if (!localStorage.getItem(PROFESSOR_SESSION_KEY)) return;
 
         const lastActivity = getProfessorSessionLastActivity() || Date.now();
         const remaining = Math.max(PROFESSOR_SESSION_TIMEOUT_MS - (Date.now() - lastActivity), 0);
@@ -309,7 +309,7 @@
     }
 
     function getStoredProfessorSessionUser() {
-        const sess = sessionStorage.getItem(PROFESSOR_SESSION_KEY);
+        const sess = localStorage.getItem(PROFESSOR_SESSION_KEY);
         if (!sess) return null;
         if (isProfessorSessionExpired()) {
             clearProfessorSession();
@@ -344,7 +344,7 @@
     }
 
     function handleProfessorSessionActivityEvent(event) {
-        if (!currentUser && !sessionStorage.getItem(PROFESSOR_SESSION_KEY)) return;
+        if (!currentUser && !localStorage.getItem(PROFESSOR_SESSION_KEY)) return;
         if (isProfessorSessionExpired()) {
             if (event.cancelable) event.preventDefault();
             event.stopImmediatePropagation();
@@ -386,7 +386,7 @@
     function storeCurrentSession(user) {
         const sessionUser = { ...(user || {}) };
         professorSessionTimedOut = false;
-        sessionStorage.setItem(PROFESSOR_SESSION_KEY, JSON.stringify(sessionUser));
+        localStorage.setItem(PROFESSOR_SESSION_KEY, JSON.stringify(sessionUser));
         touchProfessorSessionActivity(true);
     }
 
