@@ -830,13 +830,7 @@
                                 <span style="color:#38bdf8; font-weight:600;">⚠️ 수정(변경)을 원하실 경우에만 새로운 엑셀 파일 업로드 또는 비밀번호 설정을 새로 진행해 주십시오.</span>
                             </div>
 
-                            <!-- 과목 선택기 -->
-                            <div class="course-selector" id="course-selector">
-                                <label for="select-course" style="font-weight:600;color:var(--text-main);">📚 과목 선택</label>
-                                <select id="select-course" class="wizard-select">
-                                    <!-- JS가 동적으로 채움 -->
-                                </select>
-                            </div>
+                            <!-- 과목 선택기 (삭제됨) -->
 
 
                             <!-- 수강생 성적 평가 기준 요약 및 🔑 접속 비밀번호 설정 -->
@@ -897,8 +891,14 @@
                             </div>
 
                             <div class="wizard-nav" style="margin-top: 30px;">
-                                <button type="button" class="btn-back" id="btn-upload-back">← 이전 (평가기준 설정)</button>
-                                <button type="button" class="btn-next" id="btn-upload-next" style="display:none;">다음 (성적 및 학점 산출) →</button>
+                                <button type="button" class="btn-back" id="btn-upload-back">
+                                    <span class="wizard-btn-icon" aria-hidden="true">←</span>
+                                    <span class="wizard-btn-text">이전 (평가기준)</span>
+                                </button>
+                                <button type="button" class="btn-next" id="btn-upload-next" style="display:none;">
+                                    <span class="wizard-btn-text">다음 (학점산출)</span>
+                                    <span class="wizard-btn-icon" aria-hidden="true">→</span>
+                                </button>
                             </div>
                         </div>
                     </div>

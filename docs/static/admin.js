@@ -521,7 +521,6 @@
         // (wide-layout is now global for admin mode)
         if (step >= 4) {
             if (step === 4) {
-                renderCourseSelector();
                 renderCompleteSummary();
                 renderViewStats();
                 checkExistingDataForStep4();
@@ -1351,33 +1350,7 @@
         return true;
     }
 
-    // ── 과목 선택기 ──
-    function renderCourseSelector() {
-        const sel = document.getElementById('select-course');
-        if (!sel) return;
-        sel.innerHTML = '';
-
-        if (adminConfig.courses.length === 0) {
-            sel.innerHTML = '<option value="">등록된 과목 없음</option>';
-            return;
-        }
-
-        adminConfig.courses.forEach((c, i) => {
-            const opt = document.createElement('option');
-            opt.value = i;
-            opt.textContent = `${c.year} ${c.semester} — ${c.name}`;
-            sel.appendChild(opt);
-        });
-
-        // 현재 과목과 일치하는 항목 선택
-        const curIdx = adminConfig.courses.findIndex(c =>
-            c.name === adminConfig.course.name &&
-            c.year === adminConfig.course.year &&
-            c.semester === adminConfig.course.semester
-        );
-        sel.value = curIdx >= 0 ? curIdx : 0;
-        selectCourse(parseInt(sel.value));
-    }
+    // ── 과목 선택기 (삭제됨) ──
 
     function selectCourse(index) {
         const c = adminConfig.courses[index];
@@ -4940,10 +4913,7 @@
             });
         }
         
-        // 과목 선택 변경
-        document.getElementById('select-course').addEventListener('change', (e) => {
-            selectCourse(parseInt(e.target.value));
-        });
+
 
         // 공시 버튼
         document.getElementById('btn-publish').addEventListener('click', publishGrades);
