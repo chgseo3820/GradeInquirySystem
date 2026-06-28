@@ -2787,6 +2787,15 @@
                 const itemId = this.dataset.itemId;
                 const valInput = container.querySelector(`.f-rule-custom-val-input[data-item-id="${itemId}"]`);
                 if (valInput) valInput.disabled = !this.checked;
+                if (typeof checkRatioSum === 'function') checkRatioSum();
+            });
+        });
+        container.querySelectorAll('.f-rule-custom-val-input').forEach(input => {
+            input.addEventListener('input', function() {
+                if (typeof checkRatioSum === 'function') checkRatioSum();
+            });
+            input.addEventListener('change', function() {
+                if (typeof checkRatioSum === 'function') checkRatioSum();
             });
         });
     }
@@ -3088,10 +3097,66 @@
 
             const studentList = getPendingStudentList();
             const classes = {};
+            
+            // F logic simulation
+            const fMidterm = document.getElementById('f-rule-midterm') ? document.getElementById('f-rule-midterm').checked : false;
+            const fFinal = document.getElementById('f-rule-final') ? document.getElementById('f-rule-final').checked : false;
+            const activeEvalItems = getActiveEvalItems();
+
+            const customFRules = [];
+            const customContainer = document.getElementById('f-rule-custom-items-container');
+            if (customContainer) {
+                customContainer.querySelectorAll('.f-rule-custom-checkbox').forEach(cb => {
+                    if (cb.checked) {
+                        const itemId = cb.dataset.itemId;
+                        const valInput = customContainer.querySelector(`.f-rule-custom-val-input[data-item-id="${itemId}"]`);
+                        if (valInput) {
+                            customFRules.push({
+                                itemId: itemId,
+                                threshold: parseFloat(valInput.value) || 0
+                            });
+                        }
+                    }
+                });
+            }
+
             studentList.forEach(st => {
                 const cNum = st.class_num || 1;
-                if (!classes[cNum]) classes[cNum] = 0;
-                classes[cNum]++;
+                if (!classes[cNum]) classes[cNum] = { total: 0, f_count: 0, distributable: 0 };
+                classes[cNum].total++;
+
+                let isF = false;
+                if (st.absences >= 4) isF = true;
+                
+                if (!isF && activeEvalItems) {
+                    const midtermCol = activeEvalItems.find(e => e.id === 'midterm');
+                    if (midtermCol && fMidterm) {
+                        const scoreVal = st[`${midtermCol.id}_score`];
+                        if (scoreVal === null || scoreVal === undefined || scoreVal === '') isF = true;
+                    }
+                }
+                if (!isF && activeEvalItems) {
+                    const finalCol = activeEvalItems.find(e => e.id === 'final');
+                    if (finalCol && fFinal) {
+                        const scoreVal = st[`${finalCol.id}_score`];
+                        if (scoreVal === null || scoreVal === undefined || scoreVal === '') isF = true;
+                    }
+                }
+                if (!isF) {
+                    for (const rule of customFRules) {
+                        const scoreVal = rule.itemId === 'total_score' ? st.total_score : (st[`${rule.itemId}_score`] || 0);
+                        if (scoreVal < rule.threshold) {
+                            isF = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (isF || st.is_relative_excluded) {
+                    classes[cNum].f_count++;
+                } else {
+                    classes[cNum].distributable++;
+                }
             });
 
             const classKeys = Object.keys(classes).sort();
@@ -3100,20 +3165,24 @@
             let infoHtml = '';
 
             classKeys.forEach(cNum => {
-                const classCount = classes[cNum];
+                const cData = classes[cNum];
+                const classCount = cData.total;
+                const distributable = cData.distributable;
+                const fCount = cData.f_count;
+
                 let distributed = 0;
                 if (distType === 'ratio') {
-                    distributed = Math.round(classCount * (sum / 100));
+                    distributed = Math.round(distributable * (sum / 100));
                 } else {
                     distributed = sum;
-                    if (sum !== classCount) isCountError = true;
+                    if (sum !== distributable) isCountError = true;
                 }
-                const remaining = classCount - distributed;
+                const remaining = distributable - distributed;
 
                 let rowColor = remaining === 0 ? '#10b981' : '#f87171';
-                let rowText = remaining > 0 ? `남은 인원: ${remaining}명` : (remaining < 0 ? `초과: ${Math.abs(remaining)}명` : `남은 인원: 0명`);
+                let rowText = remaining > 0 ? `잔여: ${remaining}명` : (remaining < 0 ? `초과: ${Math.abs(remaining)}명` : `잔여: 0명`);
 
-                infoHtml += `<div style="margin-top:2px; margin-bottom:2px;">[${cNum}반] 총 <span style="font-weight:700;">${classCount}</span>명 / 배부: <span style="font-weight:700; color:#38bdf8;">${distributed}</span>명 / <span style="font-weight:700; color:${rowColor};">${rowText}</span></div>`;
+                infoHtml += `<div style="margin-top:2px; margin-bottom:2px; font-size:11px;">[${cNum}반] 총인원 <span style="font-weight:700;">${classCount}</span>명, 출석미달 <span style="font-weight:700; color:#f59e0b;">${fCount}</span>명, 배부가능인원 <span style="font-weight:700; color:#38bdf8;">${distributable}</span>명 / 배부: <span style="font-weight:700;">${distributed}</span>명 / <span style="font-weight:700; color:${rowColor};">${rowText}</span></div>`;
             });
 
             if (headcountInfo) {
@@ -3137,7 +3206,7 @@
             } else {
                 if (isCountError) {
                     if (rulesWarning) {
-                        rulesWarning.innerHTML = `⚠️ 인원의 총합이 각 분반의 전체 학생 수와 같아야 합니다. (현재 입력: <span id="grading-rules-sum-current">${sum}</span>명)`;
+                        rulesWarning.innerHTML = `⚠️ 인원의 총합이 각 분반의 배부가능 인원 수와 같아야 합니다. (현재 입력: <span id="grading-rules-sum-current">${sum}</span>명)`;
                         rulesWarning.style.display = 'block';
                     }
                     if (btnRun) btnRun.setAttribute('disabled', 'true');
@@ -3190,6 +3259,20 @@
                     newInput.addEventListener('input', checkRatioSum);
                 }
             });
+
+            // Bind F-rules so checkRatioSum updates immediately when F conditions change
+            const fMidtermNode = document.getElementById('f-rule-midterm');
+            if (fMidtermNode) fMidtermNode.addEventListener('change', checkRatioSum);
+            const fFinalNode = document.getElementById('f-rule-final');
+            if (fFinalNode) fFinalNode.addEventListener('change', checkRatioSum);
+            
+            const customFContainer = document.getElementById('f-rule-custom-items-container');
+            if (customFContainer) {
+                customFContainer.querySelectorAll('.f-rule-custom-checkbox, .f-rule-custom-val-input').forEach(el => {
+                    el.addEventListener('change', checkRatioSum);
+                    el.addEventListener('input', checkRatioSum);
+                });
+            }
 
             // Re-fetch inputs since they were replaced
             const reInputs = [
