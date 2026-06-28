@@ -2672,22 +2672,22 @@
     }
 
     function classFilterTh(tableKey, studentList) {
+        return `<th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>`;
+    }
+
+    function classFilterDropdownHTML(tableKey, studentList) {
         const classNums = getClassNumsFromStudents(studentList);
-        if (classNums.length <= 1) {
-            return `<th style="padding:10px; border-bottom:1px solid var(--border-glass);">분반</th>`;
-        }
+        if (classNums.length <= 1) return '';
 
         const selected = gradingTableState[tableKey].classFilter;
         const options = [
-            `<option value="all" ${selected === 'all' ? 'selected' : ''}>전체</option>`,
+            `<option value="all" ${selected === 'all' ? 'selected' : ''}>분반 전체</option>`,
             ...classNums.map(c => `<option value="${c}" ${String(selected) === String(c) ? 'selected' : ''}>${c}분반</option>`)
         ].join('');
         return `
-            <th style="padding:8px; border-bottom:1px solid var(--border-glass);">
-                <select data-grading-class-filter="${tableKey}" style="padding:4px 6px; border-radius:4px; background:rgba(15,23,42,0.9); color:white; border:1px solid var(--border-glass); outline:none; font-size:11px;">
-                    ${options}
-                </select>
-            </th>
+            <select data-grading-class-filter="${tableKey}" style="padding:4px 8px; border-radius:4px; background:rgba(15,23,42,0.9); color:white; border:1px solid var(--border-glass); outline:none; font-size:12px; cursor:pointer;">
+                ${options}
+            </select>
         `;
     }
 
