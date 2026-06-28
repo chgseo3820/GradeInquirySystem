@@ -2991,6 +2991,7 @@
 
         function updateLabels() {
             const distType = distTypeSelect.value;
+            const valLabels = document.querySelectorAll('.grading-val-label');
 
             if (distType === 'ratio') {
                 rulesTitle.textContent = '구간별 비율 설정 (총합 100%)';
@@ -3000,15 +3001,18 @@
                         input.placeholder = '%';
                     }
                 });
+                valLabels.forEach(lbl => lbl.textContent = '비율');
                 checkRatioSum();
             } else {
-                rulesTitle.textContent = '구간별 배정 인원 설정 (명)';
+                const totalStudents = getPendingStudentList().length;
+                rulesTitle.textContent = `구간별 인원 설정 (총합: ${totalStudents}명)`;
                 inputs.forEach(input => {
                     if (input) {
                         input.removeAttribute('max');
                         input.placeholder = '명';
                     }
                 });
+                valLabels.forEach(lbl => lbl.textContent = '인원');
                 if (rulesWarning) rulesWarning.style.display = 'none';
                 const btnRun = document.getElementById('btn-grading-b-run');
                 if (btnRun) btnRun.removeAttribute('disabled');
