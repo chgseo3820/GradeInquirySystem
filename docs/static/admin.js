@@ -6546,7 +6546,7 @@
 
             const editBtn = document.createElement('button');
             editBtn.className = 'btn-course-action btn-course-edit';
-            editBtn.textContent = '편집';
+            editBtn.textContent = '수정';
             editBtn.onclick = (e) => {
                 e.stopPropagation();
                 selectWizardCourse(c.originalIndex);
@@ -6569,7 +6569,7 @@
                 if (hasCourseAuthority(c)) {
                     selectWizardCourse(c.originalIndex);
                 } else {
-                    alert('⚠️ 본인이 등록한 과목만 편집할 수 있습니다.');
+                    alert('⚠️ 본인이 등록한 과목만 수정할 수 있습니다.');
                 }
             };
 
@@ -6582,7 +6582,7 @@
         if (!c) return;
 
         if (!hasCourseAuthority(c)) {
-            alert('⚠️ 본인이 등록한 과목만 편집할 수 있습니다.');
+            alert('⚠️ 본인이 등록한 과목만 수정할 수 있습니다.');
             return;
         }
 
