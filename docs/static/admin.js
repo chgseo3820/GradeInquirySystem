@@ -200,6 +200,7 @@
                 renderCourseSelector();
                 renderCompleteSummary();
                 renderViewStats();
+                checkExistingDataForStep4();
             } else if (step === 5) {
                 showGradingSubPanel('a');
             } else if (step === 6) {
@@ -986,6 +987,7 @@
         adminConfig.evaluation = c.evaluation ? [...c.evaluation] : [];
         renderCompleteSummary();
         renderViewStats();
+        checkExistingDataForStep4();
     }
 
     function addAnotherCourse() {
@@ -2060,6 +2062,61 @@
         });
     }
 
+    function checkExistingDataForStep4() {
+        const noticeEl = document.getElementById('edit-mode-notice');
+        const nextBtn = document.getElementById('btn-upload-next');
+        const accessCodeInput = document.getElementById('publish-access-code');
+
+        if (!adminConfig.course || !adminConfig.course.name) {
+            if (noticeEl) noticeEl.style.display = 'none';
+            return;
+        }
+
+        const dataKey = getCourseDataKey(adminConfig.course);
+        const rawData = localStorage.getItem(dataKey);
+
+        if (rawData) {
+            try {
+                const parsed = JSON.parse(rawData);
+                // 기존 데이터 임시 보관
+                pendingUploadData = parsed;
+
+                // 접속 비밀번호 채우기
+                if (accessCodeInput && parsed.access_code) {
+                    accessCodeInput.value = parsed.access_code;
+                }
+
+                // 안내 박스 노출
+                if (noticeEl) {
+                    noticeEl.style.display = 'block';
+                    noticeEl.style.borderColor = 'rgba(56, 189, 248, 0.25)';
+                    noticeEl.style.background = 'rgba(56, 189, 248, 0.08)';
+                    noticeEl.innerHTML = `
+                        ℹ️ <strong>기존 데이터 유지 중</strong>: 본 과목은 성적 데이터와 접속 비밀번호가 이미 등록되어 있습니다. 변경사항이 없는 경우 바로 다음 단계로 이동하실 수 있습니다.<br>
+                        <span style="color:#38bdf8; font-weight:600;">⚠️ 수정(변경)을 원하실 경우에만 새로운 엑셀 파일 업로드 또는 비밀번호 설정을 새로 진행해 주십시오.</span>
+                    `;
+                }
+
+                // 다음 단계 버튼 노출
+                if (nextBtn) {
+                    nextBtn.style.display = '';
+                    nextBtn.removeAttribute('disabled');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            // 기존 데이터 없음
+            pendingUploadData = null;
+            if (accessCodeInput) accessCodeInput.value = '';
+            if (noticeEl) noticeEl.style.display = 'none';
+            if (nextBtn) {
+                nextBtn.style.display = 'none';
+                nextBtn.setAttribute('disabled', 'true');
+            }
+        }
+    }
+
     function renderStep5A() {
         const wrap = document.getElementById('raw-scores-table-wrap');
         if (!wrap || !pendingUploadData) return;
@@ -2719,6 +2776,24 @@
             if (file) processUploadedFile(file);
             uploadInput.value = ''; // 같은 파일 재선택 가능
         });
+
+        // 비밀번호 변경 감지 안내
+        const accessCodeEl = document.getElementById('publish-access-code');
+        if (accessCodeEl) {
+            accessCodeEl.addEventListener('input', function() {
+                const noticeEl = document.getElementById('edit-mode-notice');
+                const dataKey = getCourseDataKey(adminConfig.course);
+                const hasRaw = !!localStorage.getItem(dataKey);
+
+                if (hasRaw && noticeEl) {
+                    noticeEl.innerHTML = `
+                        ⚠️ <strong>비밀번호 수정 감지됨</strong>: 접속 비밀번호를 새로 설정하고 있습니다. 변경을 완료하려면 새로운 엑셀 파일을 다시 업로드(선택 사항)한 후, 다음 단계로 이동하여 <strong>학점 산출을 재실행</strong>해 주십시오. (기존 비밀번호로 해싱된 학생 데이터를 새 비밀번호로 다시 해싱해야 합니다.)
+                    `;
+                    noticeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                    noticeEl.style.background = 'rgba(239, 68, 68, 0.08)';
+                }
+            });
+        }
     }
 
     // 업로드된 데이터를 임시 보관 (확정 전)
@@ -2812,6 +2887,20 @@
                 pipelineIsStandard
                     ? '✅ 표준 포맷 파일이 확인되었습니다. 아래 단계를 진행하세요.'
                     : '⚠️ 비표준 포맷입니다. 표준 포맷으로 변환 후 진행하세요.');
+
+            // 수정 시 안내 업데이트
+            const dataKey = getCourseDataKey(adminConfig.course);
+            const hasRaw = !!localStorage.getItem(dataKey);
+            if (hasRaw) {
+                const noticeEl = document.getElementById('edit-mode-notice');
+                if (noticeEl) {
+                    noticeEl.innerHTML = `
+                        ⚠️ <strong>새 성적 파일이 업로드됨</strong>: 성적 파일이 성공적으로 교체되었습니다. 변경 내용을 최종 반영하려면 다음 단계로 이동하여 <strong>학점 산출을 실행</strong>해 주십시오.
+                    `;
+                    noticeEl.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+                    noticeEl.style.background = 'rgba(245, 158, 11, 0.08)';
+                }
+            }
 
         } catch (err) {
             console.error('[Upload Error]', err);
