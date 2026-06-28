@@ -1015,32 +1015,34 @@
                                 <div id="grading-rules-sum-warning" style="color:#f87171; font-size:11px; margin-top:8px; display:none;">⚠️ 비율의 총합이 100%여야 합니다. (현재: <span id="grading-rules-sum-current">100</span>%)</div>
                             </div>
 
-                            <!-- 3. 동점자 처리 규칙 -->
-                            <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
-                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🏆 동점자 처리 우선순위 규칙</div>
-                                <div style="font-size:11px; color:var(--text-secondary); margin-bottom:8px;">동점자가 발생하여 비율 제한을 초과할 경우 이전 평가 항목을 아래 우선순위대로 반영합니다.</div>
-                                <div id="tie-breaker-order" style="display:flex; flex-direction:column; gap:8px;">
-                                    <!-- JS에서 평가항목 기반 우선순위 동적 렌더링 -->
+                            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                                <!-- 3. 동점자 처리 규칙 -->
+                                <div class="grading-rules-box" style="flex: 1; padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; text-align: left;">
+                                    <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🏆 동점자 처리 우선순위 규칙</div>
+                                    <div style="font-size:11px; color:var(--text-secondary); margin-bottom:8px;">동점자가 발생하여 비율 제한을 초과할 경우 이전 평가 항목을 아래 우선순위대로 반영합니다.</div>
+                                    <div id="tie-breaker-order" style="display:flex; flex-direction:column; gap:8px;">
+                                        <!-- JS에서 평가항목 기반 우선순위 동적 렌더링 -->
+                                    </div>
                                 </div>
-                            </div>
 
-                            <!-- 4. F 학점 산출 규칙 -->
-                            <div class="grading-rules-box" style="padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; margin-bottom: 20px; text-align: left;">
-                                <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🚫 F 학점 자동 부여 조건</div>
-                                <div style="display:flex; flex-direction:column; gap:8px; text-align:left;">
-                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:default; margin: 0;">
-                                        <input type="checkbox" id="f-rule-attendance" checked disabled style="cursor:not-allowed; opacity:0.7;"> <strong>[필수]</strong> 결석시수초과 (전체 수업의 1/4 초과 결석자 - 0점 처리 및 학점 비율 분배 모수 자동 제외)
-                                    </label>
-                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
-                                        <input type="checkbox" id="f-rule-midterm" checked style="cursor:pointer;"> 중간고사 결시자
-                                    </label>
-                                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
-                                        <input type="checkbox" id="f-rule-final" checked style="cursor:pointer;"> 기말고사 결시자
-                                    </label>
-                                    <!-- 특정 총점 및 기타 평가항목 미만 F 조건 동적 렌더링 영역 -->
-                                    <div style="margin-top:12px; font-weight:600; font-size:13px; color:var(--text-main);">그외 F학점 자동 부여 조건</div>
-                                    <div id="f-rule-custom-items-container" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-                                        <!-- JS에서 동적으로 채움 -->
+                                <!-- 4. F 학점 산출 규칙 -->
+                                <div class="grading-rules-box" style="flex: 1; padding:16px; background:rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius:8px; text-align: left;">
+                                    <div style="font-weight:600; font-size:13px; color:var(--text-main); margin-bottom:12px;">🚫 F 학점 자동 부여 조건</div>
+                                    <div style="display:flex; flex-direction:column; gap:8px; text-align:left;">
+                                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:default; margin: 0;">
+                                            <input type="checkbox" id="f-rule-attendance" checked disabled style="cursor:not-allowed; opacity:0.7;"> <strong>[필수]</strong> 결석시수초과 (전체 수업의 1/4 초과 결석자 - 0점 처리 및 학점 비율 분배 모수 자동 제외)
+                                        </label>
+                                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
+                                            <input type="checkbox" id="f-rule-midterm" checked style="cursor:pointer;"> 중간고사 결시자
+                                        </label>
+                                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin: 0;">
+                                            <input type="checkbox" id="f-rule-final" checked style="cursor:pointer;"> 기말고사 결시자
+                                        </label>
+                                        <!-- 특정 총점 및 기타 평가항목 미만 F 조건 동적 렌더링 영역 -->
+                                        <div style="margin-top:12px; font-weight:600; font-size:13px; color:var(--text-main);">그외 F학점 자동 부여 조건</div>
+                                        <div id="f-rule-custom-items-container" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                                            <!-- JS에서 동적으로 채움 -->
+                                        </div>
                                     </div>
                                 </div>
                             </div>
