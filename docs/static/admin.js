@@ -3086,25 +3086,38 @@
             const sumSpan = document.getElementById('grading-rules-sum-current');
             if (sumSpan) sumSpan.textContent = sum;
 
-            const totalStudents = getPendingStudentList().length;
+            const studentList = getPendingStudentList();
+            const classes = {};
+            studentList.forEach(st => {
+                const cNum = st.class_num || 1;
+                if (!classes[cNum]) classes[cNum] = 0;
+                classes[cNum]++;
+            });
+
+            const classKeys = Object.keys(classes).sort();
             const headcountInfo = document.getElementById('grading-headcount-info');
-            
-            let distributed = 0;
-            if (distType === 'ratio') {
-                distributed = Math.round(totalStudents * (sum / 100));
-            } else {
-                distributed = sum;
-            }
-            const remaining = totalStudents - distributed;
+            let isCountError = false;
+            let infoHtml = '';
+
+            classKeys.forEach(cNum => {
+                const classCount = classes[cNum];
+                let distributed = 0;
+                if (distType === 'ratio') {
+                    distributed = Math.round(classCount * (sum / 100));
+                } else {
+                    distributed = sum;
+                    if (sum !== classCount) isCountError = true;
+                }
+                const remaining = classCount - distributed;
+
+                let rowColor = remaining === 0 ? '#10b981' : '#f87171';
+                let rowText = remaining > 0 ? `남은 인원: ${remaining}명` : (remaining < 0 ? `초과: ${Math.abs(remaining)}명` : `남은 인원: 0명`);
+
+                infoHtml += `<div style="margin-top:2px; margin-bottom:2px;">[${cNum}반] 총 <span style="font-weight:700;">${classCount}</span>명 / 배부: <span style="font-weight:700; color:#38bdf8;">${distributed}</span>명 / <span style="font-weight:700; color:${rowColor};">${rowText}</span></div>`;
+            });
 
             if (headcountInfo) {
-                if (remaining > 0) {
-                    headcountInfo.innerHTML = `총 <span style="font-weight:700;">${totalStudents}</span>명 / 배부: <span style="font-weight:700; color:#38bdf8;">${distributed}</span>명 / 남은 인원: <span style="font-weight:700; color:#f87171;">${remaining}</span>명`;
-                } else if (remaining < 0) {
-                    headcountInfo.innerHTML = `총 <span style="font-weight:700;">${totalStudents}</span>명 / 배부: <span style="font-weight:700; color:#f87171;">${distributed}</span>명 / 초과 인원: <span style="font-weight:700; color:#f87171;">${Math.abs(remaining)}</span>명`;
-                } else {
-                    headcountInfo.innerHTML = `총 <span style="font-weight:700;">${totalStudents}</span>명 / 배부: <span style="font-weight:700; color:#10b981;">${distributed}</span>명 / 남은 인원: <span style="font-weight:700;">0</span>명`;
-                }
+                headcountInfo.innerHTML = `<div style="display:flex; flex-direction:column; align-items:flex-end;">${infoHtml}</div>`;
             }
 
             const btnRun = document.getElementById('btn-grading-b-run');
@@ -3122,9 +3135,9 @@
                     if (btnRun) btnRun.removeAttribute('disabled');
                 }
             } else {
-                if (sum !== totalStudents) {
+                if (isCountError) {
                     if (rulesWarning) {
-                        rulesWarning.innerHTML = `⚠️ 인원의 총합이 전체 학생 수(${totalStudents}명)와 같아야 합니다. (현재: <span id="grading-rules-sum-current">${sum}</span>명)`;
+                        rulesWarning.innerHTML = `⚠️ 인원의 총합이 각 분반의 전체 학생 수와 같아야 합니다. (현재 입력: <span id="grading-rules-sum-current">${sum}</span>명)`;
                         rulesWarning.style.display = 'block';
                     }
                     if (btnRun) btnRun.setAttribute('disabled', 'true');
