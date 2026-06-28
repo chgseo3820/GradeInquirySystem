@@ -2809,8 +2809,12 @@
             return;
         }
 
-        const dataKey = getCourseDataKey(adminConfig.course);
-        const rawData = localStorage.getItem(dataKey);
+        let rawData = null;
+        const keysToCheck = [...getCourseDataKeys(adminConfig.course), 'scorequery_data'];
+        for (const key of keysToCheck) {
+            rawData = localStorage.getItem(key);
+            if (rawData) break;
+        }
 
         if (rawData) {
             try {
